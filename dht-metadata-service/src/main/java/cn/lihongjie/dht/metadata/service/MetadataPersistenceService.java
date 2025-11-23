@@ -7,6 +7,7 @@ import cn.lihongjie.dht.metadata.repository.TorrentMetadataRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class MetadataPersistenceService {
     private final TorrentMetadataRepository repository;
     private final MetadataCacheService cacheService;
     private final MetadataStatsService statsService;
+    @Qualifier("redisTemplate")
     private final RedisTemplate<String, String> redisTemplate;
     
     @Value("${dedup.enabled:true}")
