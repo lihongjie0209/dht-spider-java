@@ -11,7 +11,7 @@ import org.springframework.context.ConfigurableApplicationContext;
  * 不启用Web服务器
  */
 @Slf4j
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "cn.lihongjie.dht")
 public class MldhtApplication {
     
     public static void main(String[] args) throws InterruptedException {
