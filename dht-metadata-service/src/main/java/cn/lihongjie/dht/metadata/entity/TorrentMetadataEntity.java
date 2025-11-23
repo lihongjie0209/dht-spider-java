@@ -39,6 +39,7 @@ public class TorrentMetadataEntity {
     private Long totalSize;
     
     @OneToMany(mappedBy = "metadata", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<TorrentFileEntity> files = new ArrayList<>();
     
     @Column(nullable = false)

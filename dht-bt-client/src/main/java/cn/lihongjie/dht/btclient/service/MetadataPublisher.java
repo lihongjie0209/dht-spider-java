@@ -74,7 +74,7 @@ public class MetadataPublisher {
     private TorrentMetadata.FileInfo convertFileInfo(TorrentFile file) {
         return TorrentMetadata.FileInfo.builder()
             .path(String.join("/", file.getPathElements()))
-            .size(file.getSize())
+            .length(file.getSize())
             .build();
     }
     
