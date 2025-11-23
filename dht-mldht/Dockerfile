@@ -1,5 +1,5 @@
 # 多阶段构建 - Stage 1: 构建
-FROM maven:3.9-eclipse-temurin-17 AS builder
+FROM maven:3.9-eclipse-temurin-21 AS builder
 
 WORKDIR /build
 
@@ -14,7 +14,7 @@ COPY dht-metadata-service/pom.xml dht-metadata-service/pom.xml
 RUN mvn clean package -pl dht-mldht -am -DskipTests
 
 # Stage 2: 运行时镜像
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 

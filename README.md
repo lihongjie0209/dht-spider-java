@@ -76,7 +76,7 @@ BT客户端服务（Spring Boot应用，无Web）：
 
 ### 前置要求
 - Docker & Docker Compose（推荐）
-- 或 Java 17+ & Maven 3.6+（本地开发）
+- 或 Java 21+ & Maven 3.6+（本地开发）
 
 ### 方式一：使用 Docker Compose（推荐）
 
@@ -374,7 +374,7 @@ docker stats
 
 ## 技术栈
 
-- **语言**：Java 17
+- **语言**：Java 21
 - **框架**：Spring Boot 3.2
 - **消息队列**：Kafka/RedPanda
 - **缓存**：Redis
