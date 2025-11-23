@@ -76,7 +76,12 @@ public class DhtNode implements AutoCloseable {
             
             @Override
             public boolean noRouterBootstrap() {
-                return true; // 禁用路由器发现，手动添加bootstrap节点
+                // 启用自动bootstrap，MLDHT会自动连接到硬编码的公共DHT节点：
+                // - dht.transmissionbt.com:6881
+                // - router.bittorrent.com:6881
+                // - router.utorrent.com:6881
+                // - router.silotis.us:6881
+                return false;
             }
             
             @Override
@@ -115,44 +120,17 @@ public class DhtNode implements AutoCloseable {
             }
         });
 
-        // 启动DHT
+        // 启动DHT（会自动触发 bootstrap 流程）
         dht.start(config);
         
         // 等待DHT初始化完成
-        Thread.sleep(1000);
-        
-        log.info("DHT Node {} started on port {}, Type: {}, Running: {}", 
-                 nodeIndex, port, dht.getType(), dht.isRunning());
-        
-        // 添加bootstrap节点
-        int addedNodes = 0;
-        for (String bootstrapNode : bootstrapNodes) {
-            try {
-                String[] parts = bootstrapNode.split(":");
-                String host = parts[0];
-                int bootstrapPort = Integer.parseInt(parts[1]);
-                
-                // 先解析地址
-                InetAddress address = InetAddress.getByName(host);
-                dht.addDHTNode(address.getHostAddress(), bootstrapPort);
-                
-                addedNodes++;
-                log.info("Node {} added bootstrap node: {} ({}:{})", 
-                         nodeIndex, bootstrapNode, address.getHostAddress(), bootstrapPort);
-            } catch (Exception e) {
-                log.warn("Node {} failed to add bootstrap node: {}", nodeIndex, bootstrapNode, e);
-            }
-        }
-        
-        log.info("Node {} added {}/{} bootstrap nodes successfully", 
-                 nodeIndex, addedNodes, bootstrapNodes.size());
-        
-        // 等待bootstrap完成
-        Thread.sleep(3000);
+        Thread.sleep(2000);
         
         running.set(true);
         
-        log.info("Node {} bootstrap complete, waiting for messages...", nodeIndex);
+        log.info("DHT Node {} started on port {}, Type: {}, Running: {}, RoutingTableSize: {}", 
+                 nodeIndex, port, dht.getType(), dht.isRunning(), 
+                 dht.getNode().getNumEntriesInRoutingTable());
         
         // 等待DHT运行（阻塞当前线程）
         int statsInterval = 0;
