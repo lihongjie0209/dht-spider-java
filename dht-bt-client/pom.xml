@@ -23,6 +23,10 @@
             <groupId>cn.lihongjie</groupId>
             <artifactId>dht-common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>cn.lihongjie</groupId>
+            <artifactId>dht-spring-common</artifactId>
+        </dependency>
 
         <!-- Spring Boot Starter (不含Web) -->
         <dependency>

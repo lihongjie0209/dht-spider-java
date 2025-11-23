@@ -18,6 +18,7 @@
         <module>dht-mldht</module>
         <module>dht-bt-client</module>
         <module>dht-metadata-service</module>
+        <module>dht-spring-common</module>
     </modules>
 
     <properties>
@@ -67,6 +68,11 @@
             <dependency>
                 <groupId>cn.lihongjie</groupId>
                 <artifactId>dht-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.lihongjie</groupId>
+                <artifactId>dht-spring-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

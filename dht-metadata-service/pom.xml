@@ -23,6 +23,10 @@
             <groupId>cn.lihongjie</groupId>
             <artifactId>dht-common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>cn.lihongjie</groupId>
+            <artifactId>dht-spring-common</artifactId>
+        </dependency>
 
         <!-- Spring Boot -->
         <dependency>
@@ -63,6 +67,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.19.3</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>1.19.3</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

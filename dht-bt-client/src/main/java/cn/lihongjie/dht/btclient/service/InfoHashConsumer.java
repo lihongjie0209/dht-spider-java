@@ -3,6 +3,7 @@ package cn.lihongjie.dht.btclient.service;
 import cn.lihongjie.dht.common.constants.KafkaTopics;
 import cn.lihongjie.dht.common.model.InfoHashMessage;
 import cn.lihongjie.dht.common.util.BloomFilterUtils;
+import cn.lihongjie.dht.springcommon.bloom.BloomFilterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
