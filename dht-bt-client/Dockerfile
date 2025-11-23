@@ -15,14 +15,8 @@ COPY dht-metadata-service/pom.xml dht-metadata-service/pom.xml
 RUN --mount=type=cache,target=/root/.m2 \
     mvn clean package -pl dht-bt-client -am -DskipTests
 
-# 提取 libtorrent4j 原生库 (linux x86_64)
-RUN set -eux; \
-  LIB_JAR=$(find /root/.m2/repository/org/libtorrent4j/libtorrent4j -name 'libtorrent4j-*.jar' | head -n1); \
-  echo "Using libtorrent4j jar: $LIB_JAR"; \
-  mkdir -p native && cd native; \
-  jar xf "$LIB_JAR" || { echo 'jar extract failed'; exit 1; }; \
-  if [ -f jni/linux/x86_64/libtorrent4j.so ]; then cp jni/linux/x86_64/libtorrent4j.so ./; else echo 'libtorrent4j.so not found in expected path'; ls -R . | head -n 100; exit 1; fi; \
-  ls -l libtorrent4j.so
+# 直接使用仓库中预置的原生库
+COPY native/libtorrent4j.so native/libtorrent4j.so
 
 # Stage 2: 运行时镜像
 FROM eclipse-temurin:21-jre
