@@ -1,19 +1,354 @@
 # DHT Spider - DHT爬虫系统
 
-基于Java的分布式DHT爬虫系统，用于发现、下载和存储BT种子元数据。
+<div align="center">
 
-## 项目结构
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Java](https://img.shields.io/badge/Java-21-blue.svg)](https://openjdk.java.net/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2-green.svg)](https://spring.io/projects/spring-boot)
+
+</div>
+
+[English](#english) | [中文](#中文)
+
+---
+
+<a name="english"></a>
+
+## 🌐 English
+
+### 📖 Description
+
+A distributed DHT spider system based on Java for discovering, downloading, and storing BitTorrent metadata.
+
+### ✨ Features
+
+- 🔍 **DHT Network Monitoring**: Listens to DHT network messages using MLDHT protocol
+- 📥 **Metadata Download**: Downloads torrent metadata via BT Peer protocol (BEP-9)
+- 🗄️ **Persistent Storage**: Stores metadata in PostgreSQL with full-text search
+- 🚀 **High Performance**: Client pool mechanism with configurable concurrency
+- 📊 **Real-time Monitoring**: Built-in statistics and health check endpoints
+- 🔄 **Message Queue**: Uses RedPanda (Kafka-compatible) for inter-service communication
+- ⚡ **Deduplication**: Redis-based global deduplication and caching
+- 🐳 **Easy Deployment**: One-click deployment with Docker Compose
+
+### 🏗️ Architecture
+
+```
+┌─────────────┐        ┌──────────┐        ┌─────────────┐        ┌──────────────┐
+│  DHT Network│───────>│  MLDHT   │───────>│  RedPanda   │───────>│  BT Client   │
+└─────────────┘        │  Service │        │  (Kafka)    │        │  Service     │
+                       └──────────┘        └─────────────┘        └──────────────┘
+                            │                                             │
+                            │              ┌──────────┐                  │
+                            └─────────────>│  Redis   │<─────────────────┘
+                                           │(Dedup)   │
+                                           └──────────┘
+                                                                          │
+                                                                          ▼
+                                           ┌─────────────┐        ┌──────────────┐
+                                           │  RedPanda   │───────>│  Metadata    │
+                                           │  (Kafka)    │        │  Service     │
+                                           └─────────────┘        └──────────────┘
+                                                                          │
+                                                                          ▼
+                                                                   ┌──────────────┐
+                                                                   │  PostgreSQL  │
+                                                                   └──────────────┘
+```
+
+### 📦 Project Structure
 
 ```
 dht-spider-java/
-├── dht-common/              # 通用模块：共享实体类、常量、工具类
-├── dht-mldht/               # MLDHT爬虫服务：监听DHT网络，发现InfoHash
-├── dht-bt-client/           # BT客户端服务：下载种子元数据
-├── dht-metadata-service/    # 元数据服务：存储和查询API（Spring Boot）
-└── pom.xml                  # 父POM
+├── dht-common/              # Common module: shared entities, constants, utilities
+├── dht-mldht/               # MLDHT crawler service: listens DHT network, discovers InfoHash
+├── dht-bt-client/           # BT client service: downloads torrent metadata
+├── dht-metadata-service/    # Metadata service: storage and query API (Spring Boot)
+└── pom.xml                  # Parent POM
 ```
 
-## 系统架构
+### 🚀 Quick Start
+
+#### Prerequisites
+
+- Docker & Docker Compose (recommended)
+- Or Java 21+ & Maven 3.6+ (for local development)
+
+#### Option 1: Using Docker Compose (Recommended)
+
+**Linux/Mac:**
+```bash
+chmod +x start.sh
+./start.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+.\start.ps1
+```
+
+**Or manually:**
+```bash
+docker-compose up -d --build
+```
+
+**Using Makefile (if make is installed):**
+```bash
+# View all available commands
+make help
+
+# Build and start
+make all
+
+# View logs
+make logs
+make logs-mldht
+make logs-btclient
+make logs-metadata
+
+# View statistics
+make stats
+```
+
+#### Option 2: Local Development Mode
+
+**1. Start Middleware:**
+```bash
+docker-compose up -d redpanda redis postgres console
+```
+
+**2. Build Project:**
+```bash
+mvn clean package
+```
+
+**3. Start Services:**
+```bash
+# Start MLDHT Service
+java -jar dht-mldht/target/dht-mldht-1.0.0-SNAPSHOT.jar
+
+# Start BT Client Service
+java -jar dht-bt-client/target/dht-bt-client-1.0.0-SNAPSHOT.jar
+
+# Start Metadata Service
+java -jar dht-metadata-service/target/dht-metadata-service-1.0.0-SNAPSHOT.jar
+```
+
+### 🌐 Service Access
+
+After startup, you can access:
+
+- **Metadata REST API**: http://localhost:8080
+- **RedPanda Console**: http://localhost:8081 (Kafka management UI)
+- **Kafka**: localhost:9092
+- **Redis**: localhost:6380
+- **PostgreSQL**: localhost:5433
+
+### 📡 Port Configuration
+
+| Service | Port Range | Protocol | Description |
+|---------|-----------|----------|-------------|
+| dht-mldht | 6881-6900 | UDP | DHT network node listening ports |
+| dht-bt-client | 6901-6950 | TCP/UDP | BT client peer connection ports |
+| dht-metadata-service | 8080 | HTTP | REST API port |
+| RedPanda (Kafka) | 9092 | TCP | Kafka protocol port |
+| RedPanda Console | 8081 | HTTP | Web management UI |
+| Redis | 6380 | TCP | Redis protocol port |
+| PostgreSQL | 5433 | TCP | PostgreSQL database port |
+
+> ⚠️ **Note**: DHT and BT ports need to be exposed to the internet (firewall/router port forwarding) for optimal discovery and download efficiency
+
+### 🔌 API Endpoints
+
+#### Health Check
+```bash
+curl http://localhost:8080/api/v1/torrents/health
+```
+
+#### Statistics
+```bash
+curl http://localhost:8080/api/v1/torrents/stats
+```
+
+#### Query by InfoHash
+```bash
+curl http://localhost:8080/api/v1/torrents/{infoHash}
+```
+
+#### Search Torrents
+```bash
+curl "http://localhost:8080/api/v1/torrents/search?keyword=movie&page=0&size=20"
+```
+
+#### Get Latest Torrents
+```bash
+curl "http://localhost:8080/api/v1/torrents/latest?page=0&size=20"
+```
+
+### ⚙️ Configuration
+
+Configuration files are located at `src/main/resources/application.properties` in each module.
+
+Key configurations:
+- Kafka/RedPanda address
+- Redis address
+- PostgreSQL database connection
+- Thread pool size
+- Timeout settings
+- Spring Boot configuration (web-application-type=none for MLDHT & BT Client)
+
+### 🛠️ Technology Stack
+
+- **Language**: Java 21
+- **Framework**: Spring Boot 3.2
+- **Message Queue**: Kafka/RedPanda
+- **Cache**: Redis
+- **Database**: PostgreSQL
+- **Build Tool**: Maven
+- **Containerization**: Docker & Docker Compose
+
+### 🐛 Troubleshooting
+
+#### Service Startup Failure
+
+1. **Check Docker Resources**
+   ```bash
+   docker stats
+   ```
+   Ensure sufficient CPU and memory (at least 4GB RAM recommended)
+
+2. **View Service Logs**
+   ```bash
+   docker-compose logs [service-name]
+   ```
+
+3. **Check Port Conflicts**
+   ```bash
+   # Windows
+   netstat -ano | findstr ":8080"
+   
+   # Linux/Mac
+   lsof -i :8080
+   ```
+
+#### Common Issues
+
+**Q: Kafka connection failure?**
+- Wait for RedPanda to fully start (about 30 seconds)
+- Check firewall settings
+- View RedPanda logs: `docker-compose logs redpanda`
+
+**Q: Database connection failure?**
+- Confirm PostgreSQL is running: `docker-compose ps postgres`
+- Check database credentials
+- View database logs: `docker-compose logs postgres`
+
+**Q: MLDHT not discovering InfoHash?**
+- DHT network discovery takes time (may take minutes to hours)
+- Check network connectivity
+- View logs for errors
+
+### 🔒 Network Configuration
+
+#### Firewall Port Opening
+
+**Windows Firewall:**
+```powershell
+# DHT ports
+New-NetFirewallRule -DisplayName "DHT-MLDHT" -Direction Inbound -Protocol UDP -LocalPort 6881-6900 -Action Allow
+
+# BT client ports
+New-NetFirewallRule -DisplayName "BT-Client-TCP" -Direction Inbound -Protocol TCP -LocalPort 6901-6950 -Action Allow
+New-NetFirewallRule -DisplayName "BT-Client-UDP" -Direction Inbound -Protocol UDP -LocalPort 6901-6950 -Action Allow
+```
+
+**Linux Firewall (ufw):**
+```bash
+# DHT ports
+sudo ufw allow 6881:6900/udp
+
+# BT client ports
+sudo ufw allow 6901:6950/tcp
+sudo ufw allow 6901:6950/udp
+```
+
+**Linux Firewall (firewalld):**
+```bash
+# DHT ports
+sudo firewall-cmd --permanent --add-port=6881-6900/udp
+
+# BT client ports
+sudo firewall-cmd --permanent --add-port=6901-6950/tcp
+sudo firewall-cmd --permanent --add-port=6901-6950/udp
+
+# Reload configuration
+sudo firewall-cmd --reload
+```
+
+### 📊 Monitoring
+
+#### RedPanda Console
+Visit http://localhost:8081 to view:
+- Kafka topics and messages
+- Consumer group status
+- Message backlog
+
+#### Application Statistics
+```bash
+curl http://localhost:8080/api/v1/torrents/stats
+```
+
+#### Docker Resource Monitoring
+```bash
+docker stats
+```
+
+### 🗺️ Roadmap
+
+- [x] Create project skeleton
+- [x] Implement MLDHT protocol listener (based on atomashpolskiy/bt)
+- [x] Implement BT metadata download (BEP-9 protocol)
+- [x] Implement client pooling mechanism (default 10 clients)
+- [x] Implement metadata storage and query
+- [x] Add monitoring and statistics
+- [ ] Performance optimization and tuning
+- [ ] Add Web management UI
+
+### 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+### 👤 Author
+
+lihongjie (cn.lihongjie)
+
+### 🙏 Acknowledgments
+
+- [atomashpolskiy/bt](https://github.com/atomashpolskiy/bt) - BitTorrent library for Java
+- [RedPanda](https://redpanda.com/) - Kafka-compatible streaming platform
+
+---
+
+<a name="中文"></a>
+
+## 🌐 中文
+
+### 📖 项目描述
+
+基于Java的分布式DHT爬虫系统，用于发现、下载和存储BT种子元数据。
+
+### ✨ 特性
+
+- 🔍 **DHT网络监听**: 使用MLDHT协议监听DHT网络消息
+- 📥 **元数据下载**: 通过BT Peer协议下载种子元数据（BEP-9协议）
+- 🗄️ **持久化存储**: 将元数据存储在PostgreSQL中，支持全文搜索
+- 🚀 **高性能**: 客户端池化机制，可配置并发度
+- 📊 **实时监控**: 内置统计信息和健康检查端点
+- 🔄 **消息队列**: 使用RedPanda（Kafka兼容）实现服务间通信
+- ⚡ **去重机制**: 基于Redis的全局去重和缓存
+- 🐳 **简单部署**: 使用Docker Compose一键部署
+
+### 🏗️ 系统架构
 
 ```
 ┌─────────────┐        ┌──────────┐        ┌─────────────┐        ┌──────────────┐
@@ -36,6 +371,17 @@ dht-spider-java/
                                                                    ┌──────────────┐
                                                                    │  PostgreSQL  │
                                                                    └──────────────┘
+```
+
+### 📦 项目结构
+
+```
+dht-spider-java/
+├── dht-common/              # 通用模块：共享实体类、常量、工具类
+├── dht-mldht/               # MLDHT爬虫服务：监听DHT网络，发现InfoHash
+├── dht-bt-client/           # BT客户端服务：下载种子元数据
+├── dht-metadata-service/    # 元数据服务：存储和查询API（Spring Boot）
+└── pom.xml                  # 父POM
 ```
 
 ## 模块说明
@@ -72,7 +418,7 @@ BT客户端服务（Spring Boot应用，无Web）：
 - **Redis**：全局去重和缓存
 - **PostgreSQL**：元数据持久化存储
 
-## 快速开始
+## 🚀 快速开始
 
 ### 前置要求
 - Docker & Docker Compose（推荐）
@@ -173,7 +519,7 @@ java -jar dht-bt-client/target/dht-bt-client-1.0.0-SNAPSHOT.jar
 java -jar dht-metadata-service/target/dht-metadata-service-1.0.0-SNAPSHOT.jar
 ```
 
-## 服务访问地址
+## 🌐 服务访问地址
 
 启动后可访问以下服务：
 
@@ -183,7 +529,7 @@ java -jar dht-metadata-service/target/dht-metadata-service-1.0.0-SNAPSHOT.jar
 - **Redis**: localhost:6380
 - **PostgreSQL**: localhost:5433
 
-## 端口说明
+## 📡 端口说明
 
 | 服务 | 端口范围 | 协议 | 说明 |
 |-----|---------|------|------|
@@ -197,7 +543,7 @@ java -jar dht-metadata-service/target/dht-metadata-service-1.0.0-SNAPSHOT.jar
 
 > ⚠️ **注意**：DHT 和 BT 端口需要对外开放（防火墙/路由器端口转发），否则会影响发现和下载效率
 
-## API 接口
+## 🔌 API 接口
 
 ### 健康检查
 ```bash
@@ -224,7 +570,7 @@ curl "http://localhost:8080/api/v1/torrents/search?keyword=电影&page=0&size=20
 curl "http://localhost:8080/api/v1/torrents/latest?page=0&size=20"
 ```
 
-## 配置说明
+## ⚙️ 配置说明
 
 各模块的配置文件位于 `src/main/resources/application.properties`
 
@@ -236,7 +582,17 @@ curl "http://localhost:8080/api/v1/torrents/latest?page=0&size=20"
 - 超时设置
 - Spring Boot配置（web-application-type=none for MLDHT & BT Client）
 
-## 开发计划
+## 🛠️ 技术栈
+
+- **语言**：Java 21
+- **框架**：Spring Boot 3.2
+- **消息队列**：Kafka/RedPanda
+- **缓存**：Redis
+- **数据库**：PostgreSQL
+- **构建工具**：Maven
+- **容器化**：Docker & Docker Compose
+
+## 🗺️ 开发计划
 
 - [x] 创建项目骨架
 - [x] 实现MLDHT协议监听（基于 atomashpolskiy/bt）
@@ -247,7 +603,7 @@ curl "http://localhost:8080/api/v1/torrents/latest?page=0&size=20"
 - [ ] 性能优化和调优
 - [ ] 添加 Web 管理界面
 
-## 故障排查
+## 🐛 故障排查
 
 ### 服务启动失败
 
@@ -294,7 +650,7 @@ curl "http://localhost:8080/api/v1/torrents/latest?page=0&size=20"
 - 检查网络连接
 - 查看日志确认是否有错误
 
-### 网络配置
+### 🔒 网络配置
 
 #### 防火墙端口开放
 
@@ -337,7 +693,7 @@ sudo firewall-cmd --reload
 - **DHT**: 转发 UDP 6881-6900 到服务器 IP
 - **BT Client**: 转发 TCP/UDP 6901-6950 到服务器 IP
 
-### 性能调优
+### ⚡ 性能调优
 
 1. **调整 BT 客户端池大小**
    编辑 `dht-bt-client/src/main/resources/application.properties`：
@@ -354,7 +710,7 @@ sudo firewall-cmd --reload
    spring.datasource.hikari.maximum-pool-size=20
    ```
 
-## 监控
+## 📊 监控
 
 ### RedPanda Console
 访问 http://localhost:8081 查看：
@@ -372,20 +728,15 @@ curl http://localhost:8080/api/v1/torrents/stats
 docker stats
 ```
 
-## 技术栈
+## 📄 许可证
 
-- **语言**：Java 21
-- **框架**：Spring Boot 3.2
-- **消息队列**：Kafka/RedPanda
-- **缓存**：Redis
-- **数据库**：PostgreSQL
-- **构建工具**：Maven
-- **容器化**：Docker & Docker Compose
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
 
-## 许可证
-
-MIT License
-
-## 作者
+## 👤 作者
 
 lihongjie (cn.lihongjie)
+
+## 🙏 致谢
+
+- [atomashpolskiy/bt](https://github.com/atomashpolskiy/bt) - Java的BitTorrent库
+- [RedPanda](https://redpanda.com/) - Kafka兼容的流处理平台
