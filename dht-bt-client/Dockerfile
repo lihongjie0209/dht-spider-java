@@ -16,17 +16,18 @@ RUN --mount=type=cache,target=/root/.m2 \
     mvn clean package -pl dht-bt-client -am -DskipTests
 
 # Stage 2: 运行时镜像
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# 复制构建产物
+ # 复制构建产物
 COPY --from=builder /build/dht-bt-client/target/dht-bt-client-*.jar app.jar
 
-# 创建 BT 临时存储目录
-RUN mkdir -p /app/bt-temp && \
-    addgroup -S appgroup && adduser -S appuser -G appgroup && \
-    chown -R appuser:appgroup /app
+# 预创建固定 native 与临时目录，避免在 /tmp 上的 noexec/权限问题
+RUN mkdir -p /opt/libtorrent /opt/tmp /app/bt-temp \
+  && addgroup --system appgroup \
+  && adduser --system --ingroup appgroup appuser \
+  && chown -R appuser:appgroup /opt/libtorrent /opt/tmp /app
 
 USER appuser
 
@@ -42,5 +43,11 @@ EXPOSE 6901-6950/udp
 ENV DEDUP_ENABLED=true \
   DEDUP_BLOOM_KEY=dht:bloom:downloaded
 
-# 启动应用
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# JVM 与 libtorrent4j 环境变量
+ENV JAVA_OPTS="-Djava.library.path=/opt/libtorrent -Djava.io.tmpdir=/opt/tmp -XX:+UseContainerSupport -XX:MaxRAMPercentage=75"
+
+# 可选：预热（如需在运行层预先加载，可取消注释）
+# RUN java $JAVA_OPTS -cp app.jar cn.lihongjie.dht.btclient.service.LibtorrentWarmup || true
+
+# 启动应用（允许覆盖 JAVA_OPTS）
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
