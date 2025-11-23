@@ -1,16 +1,16 @@
 package cn.lihongjie.dht.metadata.service;
 
 import cn.lihongjie.dht.common.model.TorrentMetadata;
+import cn.lihongjie.dht.metadata.entity.TorrentFileEntity;
 import cn.lihongjie.dht.metadata.entity.TorrentMetadataEntity;
 import cn.lihongjie.dht.metadata.repository.TorrentMetadataRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.stream.Collectors;
 
 /**
  * 元数据持久化服务
@@ -23,7 +23,6 @@ public class MetadataPersistenceService {
     private final TorrentMetadataRepository repository;
     private final MetadataCacheService cacheService;
     private final MetadataStatsService statsService;
-    private final ObjectMapper objectMapper;
     
     /**
      * 保存元数据
@@ -63,17 +62,29 @@ public class MetadataPersistenceService {
     /**
      * 转换为实体
      */
-    private TorrentMetadataEntity convertToEntity(TorrentMetadata metadata) throws JsonProcessingException {
+    private TorrentMetadataEntity convertToEntity(TorrentMetadata metadata) {
         Instant now = Instant.now();
         
-        return TorrentMetadataEntity.builder()
+        TorrentMetadataEntity entity = TorrentMetadataEntity.builder()
                 .infoHash(metadata.getInfoHash())
                 .name(metadata.getName())
                 .totalSize(metadata.getTotalSize())
-                .filesJson(objectMapper.writeValueAsString(metadata.getFiles()))
-                .rawMetadata(metadata.getRawMetadata())
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
+        
+        // 转换文件列表
+        if (metadata.getFiles() != null && !metadata.getFiles().isEmpty()) {
+            var files = metadata.getFiles().stream()
+                    .map(file -> TorrentFileEntity.builder()
+                            .metadataId(entity.getId())
+                            .filePath(file.getPath())
+                            .fileSize(file.getLength())
+                            .build())
+                    .collect(Collectors.toList());
+            entity.getFiles().addAll(files);
+        }
+        
+        return entity;
     }
 }

@@ -45,11 +45,6 @@ public class TorrentMetadata implements Serializable {
      */
     private Instant fetchedAt;
     
-    /**
-     * 原始元数据（bencode编码）
-     */
-    private byte[] rawMetadata;
-    
     @Data
     @Builder
     @NoArgsConstructor
@@ -65,6 +60,6 @@ public class TorrentMetadata implements Serializable {
         /**
          * 文件大小（字节）
          */
-        private Long size;
+        private Long length;
     }
 }

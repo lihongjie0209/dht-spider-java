@@ -10,8 +10,9 @@ COPY dht-bt-client dht-bt-client
 COPY dht-mldht/pom.xml dht-mldht/pom.xml
 COPY dht-metadata-service/pom.xml dht-metadata-service/pom.xml
 
-# 构建项目
-RUN mvn clean package -pl dht-bt-client -am -DskipTests
+# 构建项目（使用 Maven 缓存）
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn clean package -pl dht-bt-client -am -DskipTests
 
 # Stage 2: 运行时镜像
 FROM eclipse-temurin:21-jre-alpine

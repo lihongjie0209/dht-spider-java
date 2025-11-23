@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 种子元数据实体
@@ -36,8 +38,8 @@ public class TorrentMetadataEntity {
     @Column(nullable = false)
     private Long totalSize;
     
-    @Column(columnDefinition = "TEXT")
-    private String filesJson;
+    @OneToMany(mappedBy = "metadata", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TorrentFileEntity> files = new ArrayList<>();
     
     @Column(nullable = false)
     private Instant createdAt;

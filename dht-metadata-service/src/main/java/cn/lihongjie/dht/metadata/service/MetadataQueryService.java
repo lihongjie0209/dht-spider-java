@@ -4,16 +4,14 @@ import cn.lihongjie.dht.common.model.TorrentMetadata;
 import cn.lihongjie.dht.metadata.dto.TorrentMetadataDTO;
 import cn.lihongjie.dht.metadata.entity.TorrentMetadataEntity;
 import cn.lihongjie.dht.metadata.repository.TorrentMetadataRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * 元数据查询服务
@@ -25,7 +23,6 @@ public class MetadataQueryService {
     
     private final TorrentMetadataRepository repository;
     private final MetadataCacheService cacheService;
-    private final ObjectMapper objectMapper;
     
     /**
      * 根据InfoHash查询
@@ -75,23 +72,16 @@ public class MetadataQueryService {
      * 转换为DTO（从Entity）
      */
     private TorrentMetadataDTO convertToDTO(TorrentMetadataEntity entity) {
-        try {
-            List<TorrentMetadata.FileInfo> files = objectMapper.readValue(
-                    entity.getFilesJson(),
-                    new TypeReference<List<TorrentMetadata.FileInfo>>() {}
-            );
-            
-            return TorrentMetadataDTO.builder()
-                    .infoHash(entity.getInfoHash())
-                    .name(entity.getName())
-                    .totalSize(entity.getTotalSize())
-                    .files(files)
-                    .fetchedAt(entity.getCreatedAt())
-                    .build();
-                    
-        } catch (Exception e) {
-            log.error("Failed to convert entity to DTO for InfoHash: {}", entity.getInfoHash(), e);
-            throw new RuntimeException("Failed to convert entity to DTO", e);
-        }
+        var files = entity.getFiles().stream()
+                .map(file -> new TorrentMetadata.FileInfo(file.getFilePath(), file.getFileSize()))
+                .collect(Collectors.toList());
+        
+        return TorrentMetadataDTO.builder()
+                .infoHash(entity.getInfoHash())
+                .name(entity.getName())
+                .totalSize(entity.getTotalSize())
+                .files(files)
+                .fetchedAt(entity.getCreatedAt())
+                .build();
     }
 }
