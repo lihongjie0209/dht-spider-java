@@ -7,7 +7,6 @@ import cn.lihongjie.dht.metadata.repository.TorrentMetadataRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,16 +23,16 @@ public class MetadataPersistenceService {
     private final TorrentMetadataRepository repository;
     private final MetadataCacheService cacheService;
     private final MetadataStatsService statsService;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final BloomFilterService bloomFilterService;
 
     public MetadataPersistenceService(TorrentMetadataRepository repository,
                                       MetadataCacheService cacheService,
                                       MetadataStatsService statsService,
-                                      @Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate) {
+                                      BloomFilterService bloomFilterService) {
         this.repository = repository;
         this.cacheService = cacheService;
         this.statsService = statsService;
-        this.redisTemplate = redisTemplate;
+        this.bloomFilterService = bloomFilterService;
     }
     
     @Value("${dedup.enabled:true}")
@@ -91,30 +90,14 @@ public class MetadataPersistenceService {
      * Bloom Filter预检查（使用Redis原生BF.EXISTS命令，单元素）
      */
     private boolean mightExist(String infoHash) {
-        try {
-            Object result = redisTemplate.execute(
-                (connection) -> connection.execute("BF.EXISTS",
-                    bloomFilterKey.getBytes(), infoHash.getBytes()),
-                true);
-            return result != null && "1".equals(result.toString());
-        } catch (Exception e) {
-            log.error("Bloom Filter EXISTS check failed for {}", infoHash, e);
-            return true; // 出错时假设存在，走数据库查询
-        }
+        return bloomFilterService.exists(bloomFilterKey, infoHash);
     }
     
     /**
      * 标记到Bloom Filter（使用Redis原生BF.ADD命令，单元素）
      */
     private void markAsProcessed(String infoHash) {
-        try {
-            redisTemplate.execute(
-                (connection) -> connection.execute("BF.ADD",
-                    bloomFilterKey.getBytes(), infoHash.getBytes()),
-                true);
-        } catch (Exception e) {
-            log.error("Bloom Filter ADD mark failed for {}", infoHash, e);
-        }
+        bloomFilterService.add(bloomFilterKey, infoHash);
     }
     
     /**

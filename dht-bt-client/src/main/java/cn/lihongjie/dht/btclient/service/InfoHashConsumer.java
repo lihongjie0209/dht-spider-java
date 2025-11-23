@@ -6,7 +6,6 @@ import cn.lihongjie.dht.common.util.BloomFilterUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Service;
@@ -23,7 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class InfoHashConsumer {
     
     private final MetadataDownloader metadataDownloader;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final BloomFilterService bloomFilterService;
     
     @Value("${dedup.enabled:true}")
     private boolean dedupEnabled;
@@ -45,7 +44,7 @@ public class InfoHashConsumer {
             log.debug("Received InfoHash: {}", infoHash);
             
             // Bloom Filter去重检查
-            if (dedupEnabled && isDuplicate(infoHash)) {
+            if (dedupEnabled && bloomFilterService.exists(bloomFilterKey, infoHash)) {
                 long count = duplicateCount.incrementAndGet();
                 if (count % 100 == 0) {
                     log.debug("Skipped {} duplicate downloads", count);
@@ -65,7 +64,7 @@ public class InfoHashConsumer {
                         
                         // 下载成功后标记为已处理
                         if (dedupEnabled) {
-                            markAsProcessed(infoHash);
+                            bloomFilterService.add(bloomFilterKey, infoHash);
                         }
                         processedCount.incrementAndGet();
                     } else {
@@ -82,33 +81,4 @@ public class InfoHashConsumer {
         }
     }
     
-    /**
-     * 检查InfoHash是否已下载过（使用Redis原生BF.EXISTS命令，单元素检查）
-     */
-    private boolean isDuplicate(String infoHash) {
-        try {
-            Object result = redisTemplate.execute(
-                (connection) -> connection.execute("BF.EXISTS",
-                    bloomFilterKey.getBytes(), infoHash.getBytes()),
-                true);
-            return result != null && "1".equals(result.toString());
-        } catch (Exception e) {
-            log.error("Bloom Filter EXISTS check failed for {}", infoHash, e);
-            return false;
-        }
-    }
-    
-    /**
-     * 标记InfoHash为已下载（使用Redis原生BF.ADD命令，单元素添加）
-     */
-    private void markAsProcessed(String infoHash) {
-        try {
-            redisTemplate.execute(
-                (connection) -> connection.execute("BF.ADD",
-                    bloomFilterKey.getBytes(), infoHash.getBytes()),
-                true);
-        } catch (Exception e) {
-            log.error("Bloom Filter ADD mark failed for {}", infoHash, e);
-        }
-    }
 }
