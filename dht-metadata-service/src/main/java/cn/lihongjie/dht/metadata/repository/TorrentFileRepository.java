@@ -17,7 +17,7 @@ public interface TorrentFileRepository extends JpaRepository<TorrentFileEntity, 
     /**
      * 根据元数据ID查询文件列表
      */
-    List<TorrentFileEntity> findByMetadataId(Long metadataId);
+    List<TorrentFileEntity> findByMetadata_Id(Long metadataId);
     
     /**
      * 根据文件路径模糊搜索

@@ -77,7 +77,7 @@ public class MetadataPersistenceService {
         if (metadata.getFiles() != null && !metadata.getFiles().isEmpty()) {
             var files = metadata.getFiles().stream()
                     .map(file -> TorrentFileEntity.builder()
-                            .metadataId(entity.getId())
+                            .metadata(entity)  // 设置父实体引用
                             .filePath(file.getPath())
                             .fileSize(file.getLength())
                             .build())

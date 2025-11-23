@@ -24,16 +24,13 @@ public class TorrentFileEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
-    private Long metadataId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "metadataId", nullable = false)
+    private TorrentMetadataEntity metadata;
     
     @Column(nullable = false, length = 1000)
     private String filePath;
     
     @Column(nullable = false)
     private Long fileSize;
-    
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "metadataId", insertable = false, updatable = false)
-    private TorrentMetadataEntity metadata;
 }
