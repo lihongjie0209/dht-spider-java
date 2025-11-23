@@ -1,0 +1,187 @@
+services:
+  # RedPanda (Kafka兼容的消息队列)
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: dht-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp
+      - '1'
+      - --reserve-memory
+      - 0M
+      - --overprovisioned
+      - --node-id
+      - '0'
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+      - "9644:9644"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dht-network
+
+  # Redis (全局去重和缓存)
+  redis:
+    image: redis:7.2-alpine
+    container_name: dht-redis
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dht-network
+
+  # PostgreSQL (元数据持久化)
+  postgres:
+    image: postgres:16-alpine
+    container_name: dht-postgres
+    environment:
+      POSTGRES_DB: dht_spider
+      POSTGRES_USER: dht_user
+      POSTGRES_PASSWORD: dht_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dht_user -d dht_spider"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dht-network
+
+  # RedPanda Console (可选：Web UI管理界面)
+  console:
+    image: redpandadata/console:latest
+    container_name: dht-redpanda-console
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+    ports:
+      - "8081:8080"
+    depends_on:
+      - redpanda
+    networks:
+      - dht-network
+
+  # MLDHT 服务 - DHT 网络爬虫
+  dht-mldht:
+    build:
+      context: .
+      dockerfile: dht-mldht/Dockerfile
+    container_name: dht-mldht
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      DHT_STARTPORT: 6881
+      DHT_NODECOUNT: 20
+    ports:
+      # DHT 节点端口范围 (UDP)
+      - "6881-6900:6881-6900/udp"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dht-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # BT 客户端服务 - 元数据下载
+  dht-bt-client:
+    build:
+      context: .
+      dockerfile: dht-bt-client/Dockerfile
+    container_name: dht-bt-client
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      BT_CLIENT_POOLSIZE: 10
+    ports:
+      # BT 客户端端口范围 (TCP/UDP)
+      - "6901-6950:6901-6950"
+      - "6901-6950:6901-6950/udp"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      dht-mldht:
+        condition: service_started
+    networks:
+      - dht-network
+    restart: unless-stopped
+    volumes:
+      - bt-temp:/app/bt-temp
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 元数据服务 - REST API
+  dht-metadata-service:
+    build:
+      context: .
+      dockerfile: dht-metadata-service/Dockerfile
+    container_name: dht-metadata-service
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dht_spider
+      SPRING_DATASOURCE_USERNAME: dht_user
+      SPRING_DATASOURCE_PASSWORD: dht_pass
+    ports:
+      - "8080:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      dht-bt-client:
+        condition: service_started
+    networks:
+      - dht-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis-data:
+    driver: local
+  postgres-data:
+    driver: local
+  bt-temp:
+    driver: local
+
+networks:
+  dht-network:
+    driver: bridge

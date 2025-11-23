@@ -1,0 +1,70 @@
+package cn.lihongjie.dht.common.model;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
+import java.time.Instant;
+import java.util.List;
+
+/**
+ * 种子元数据：从BT客户端传递到Metadata服务
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class TorrentMetadata implements Serializable {
+    
+    private static final long serialVersionUID = 1L;
+    
+    /**
+     * InfoHash (40位十六进制字符串)
+     */
+    private String infoHash;
+    
+    /**
+     * 种子名称
+     */
+    private String name;
+    
+    /**
+     * 文件列表
+     */
+    private List<FileInfo> files;
+    
+    /**
+     * 总大小（字节）
+     */
+    private Long totalSize;
+    
+    /**
+     * 下载完成时间
+     */
+    private Instant fetchedAt;
+    
+    /**
+     * 原始元数据（bencode编码）
+     */
+    private byte[] rawMetadata;
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FileInfo implements Serializable {
+        private static final long serialVersionUID = 1L;
+        
+        /**
+         * 文件路径
+         */
+        private String path;
+        
+        /**
+         * 文件大小（字节）
+         */
+        private Long size;
+    }
+}
