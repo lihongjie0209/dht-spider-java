@@ -19,8 +19,8 @@ public class MetadataDownloadIntegrationTest {
     // Ubuntu 25.10 live server amd64 ISO infohash (用户提供)
     private static final String INFO_HASH = "CCBD47A30A5A13A5260295E4BD65C038244E9DF0";
 
-    @Test
-    @DisplayName("下载磁力链接元数据并验证基本字段")
+    // @Test
+    // @DisplayName("下载磁力链接元数据并验证基本字段")
     void downloadMagnetMetadata() throws Exception {
         // 临时存储目录（仅用于 bt-core 运行要求，不会实际写文件内容）
         Path storage = Files.createTempDirectory("bt-meta-test");

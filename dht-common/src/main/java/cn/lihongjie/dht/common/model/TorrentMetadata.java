@@ -44,6 +44,11 @@ public class TorrentMetadata implements Serializable {
      * 下载完成时间
      */
     private Instant fetchedAt;
+
+    /**
+     * 下载状态: SUCCESS | FAILED
+     */
+    private String status;
     
     @Data
     @Builder

@@ -72,14 +72,17 @@ public class MetadataDownloader {
                 }
                 case TIMEOUT -> {
                     failureCount.incrementAndGet();
+                    metadataPublisher.publishFailure(infoHash, "TIMEOUT");
                     log.warn("Download timeout infoHash={} elapsed={}ms", infoHash, result.elapsedMillis());
                 }
                 case NO_PEERS -> {
                     failureCount.incrementAndGet();
+                    metadataPublisher.publishFailure(infoHash, "NO_PEERS");
                     log.warn("Download no-peers infoHash={} elapsed={}ms", infoHash, result.elapsedMillis());
                 }
                 case ERROR -> {
                     failureCount.incrementAndGet();
+                    metadataPublisher.publishFailure(infoHash, "ERROR:" + (result.error() != null ? result.error().getMessage() : "unknown"));
                     log.error("Download error infoHash={} elapsed={}ms err={}", infoHash, result.elapsedMillis(),
                             result.error() != null ? result.error().getMessage() : "unknown");
                 }
@@ -88,10 +91,12 @@ public class MetadataDownloader {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             failureCount.incrementAndGet();
+            metadataPublisher.publishFailure(infoHash, "INTERRUPTED");
             log.error("Interrupted download infoHash={}", infoHash);
             return null;
         } catch (Exception e) {
             failureCount.incrementAndGet();
+            metadataPublisher.publishFailure(infoHash, "UNEXPECTED:" + e.getMessage());
             log.error("Unexpected error download infoHash={}: {}", infoHash, e.getMessage());
             return null;
         }
