@@ -31,7 +31,7 @@ public class DirectPeerDownloader {
     private final BloomFilterService bloomFilterService;
     private final MetadataPublisher metadataPublisher;
 
-    @Value("${direct.enabled:true}")
+    @Value("${download.direct.enabled:false}")
     private boolean directEnabled;
 
     @Value("${direct.connect.timeout-millis:1000}")
