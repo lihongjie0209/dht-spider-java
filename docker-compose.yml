@@ -29,13 +29,14 @@ services:
     networks:
       - dht-network
 
-  # Redis (全局去重和缓存)
+  # Redis Stack (包含RedisBloom模块，原生支持Bloom Filter)
   redis:
-    image: redis:7.2-alpine
+    image: redis/redis-stack-server:7.2.0-v11
     container_name: dht-redis
     ports:
       - "6380:6379"
-    command: redis-server --appendonly yes
+    environment:
+      - REDIS_ARGS=--appendonly yes
     volumes:
       - redis-data:/data
     healthcheck:
