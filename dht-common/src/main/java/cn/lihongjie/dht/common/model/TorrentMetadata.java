@@ -49,6 +49,23 @@ public class TorrentMetadata implements Serializable {
      * 下载状态: SUCCESS | FAILED
      */
     private String status;
+
+    /**
+     * 失败原因消息（FAILED 时可用）
+     */
+    private String failureMessage;
+
+    /**
+     * 触发下载/失败时的对端地址（便于后续重试分析）
+     */
+    private String peerIp;
+    private Integer peerPort;
+
+    /**
+     * 上次重试时间与重试次数（便于后续调度器使用）
+     */
+    private Instant lastRetryAt;
+    private Integer retryCount;
     
     @Data
     @Builder

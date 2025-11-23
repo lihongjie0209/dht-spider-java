@@ -152,6 +152,7 @@ public class MetadataPublisher {
                     .totalSize(0L)
                     .fetchedAt(java.time.Instant.now())
                     .status("FAILED")
+                    .failureMessage(reason)
                     .build();
             kafkaTemplate.send(KafkaTopics.METADATA_FAILED, infoHash, metadata)
                     .whenComplete((result, ex) -> {

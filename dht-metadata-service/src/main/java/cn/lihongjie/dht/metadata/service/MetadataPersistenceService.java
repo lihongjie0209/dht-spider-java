@@ -60,6 +60,21 @@ public class MetadataPersistenceService {
                 if (metadata.getStatus() != null) {
                     entity.setStatus(metadata.getStatus());
                 }
+                if (metadata.getFailureMessage() != null) {
+                    entity.setFailureMessage(metadata.getFailureMessage());
+                }
+                if (metadata.getPeerIp() != null) {
+                    entity.setPeerIp(metadata.getPeerIp());
+                }
+                if (metadata.getPeerPort() != null) {
+                    entity.setPeerPort(metadata.getPeerPort());
+                }
+                if (metadata.getLastRetryAt() != null) {
+                    entity.setLastRetryAt(metadata.getLastRetryAt());
+                }
+                if (metadata.getRetryCount() != null) {
+                    entity.setRetryCount(metadata.getRetryCount());
+                }
                 if (metadata.getName() != null && (entity.getName() == null || "FAILED".equalsIgnoreCase(entity.getStatus()))) {
                     entity.setName(metadata.getName());
                 }
@@ -125,6 +140,11 @@ public class MetadataPersistenceService {
                 .name(metadata.getName())
                 .totalSize(metadata.getTotalSize())
                 .status(metadata.getStatus() != null ? metadata.getStatus() : "SUCCESS")
+            .failureMessage(metadata.getFailureMessage())
+            .peerIp(metadata.getPeerIp())
+            .peerPort(metadata.getPeerPort())
+            .lastRetryAt(metadata.getLastRetryAt())
+            .retryCount(metadata.getRetryCount())
                 .createdAt(now)
                 .updatedAt(now)
                 .build();

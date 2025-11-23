@@ -50,4 +50,20 @@ public class TorrentMetadataEntity {
     
     @Column(nullable = false)
     private Instant updatedAt;
+
+    // 失败与重试信息
+    @Column(nullable = true, length = 1024)
+    private String failureMessage;
+
+    @Column(nullable = true, length = 45)
+    private String peerIp;
+
+    @Column(nullable = true)
+    private Integer peerPort;
+
+    @Column(nullable = true)
+    private Instant lastRetryAt;
+
+    @Column(nullable = true)
+    private Integer retryCount;
 }
