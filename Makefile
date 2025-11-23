@@ -1,18 +1,24 @@
-.PHONY: help build up down restart logs clean ps stats health
+.PHONY: help build build-all up down restart logs clean ps stats health
 
 # 默认目标
 help:
 	@echo "DHT Spider - 可用命令："
 	@echo ""
-	@echo "  make build    - 构建所有 Docker 镜像"
-	@echo "  make up       - 启动所有服务"
-	@echo "  make down     - 停止所有服务"
-	@echo "  make restart  - 重启所有服务"
-	@echo "  make logs     - 查看所有日志"
-	@echo "  make ps       - 查看服务状态"
-	@echo "  make stats    - 查看统计信息"
-	@echo "  make health   - 健康检查"
-	@echo "  make clean    - 清理所有数据（危险操作）"
+	@echo "  make build      - 构建所有 Docker 镜像"
+	@echo "  make build-all  - 构建所有服务并启动"
+	@echo "  make up         - 启动所有服务"
+	@echo "  make down       - 停止所有服务"
+	@echo "  make restart    - 重启所有服务"
+	@echo "  make logs       - 查看所有日志"
+	@echo "  make ps         - 查看服务状态"
+	@echo "  make stats      - 查看统计信息"
+	@echo "  make health     - 健康检查"
+	@echo "  make clean      - 清理所有数据（危险操作）"
+	@echo ""
+	@echo "独立服务构建："
+	@echo "  make build-mldht     - 构建并启动 dht-mldht"
+	@echo "  make build-btclient  - 构建并启动 dht-bt-client"
+	@echo "  make build-metadata  - 构建并启动 dht-metadata-service"
 	@echo ""
 	@echo "查看特定服务日志："
 	@echo "  make logs-mldht"
@@ -22,6 +28,23 @@ help:
 # 构建镜像
 build:
 	docker-compose build
+
+# 构建所有服务并启动
+build-all:
+	docker-compose up -d --build
+	@echo "⏳ 等待服务启动..."
+	@sleep 10
+	@make ps
+
+# 构建并启动单个服务
+build-mldht:
+	docker-compose up -d --build dht-mldht
+
+build-btclient:
+	docker-compose up -d --build dht-bt-client
+
+build-metadata:
+	docker-compose up -d --build dht-metadata-service
 
 # 启动服务
 up:
@@ -88,7 +111,7 @@ clean:
 	fi
 
 # 完整启动（构建+启动）
-all: build up
+all: build-all
 	@echo "✅ 所有服务已启动"
 	@echo ""
 	@echo "访问地址："
