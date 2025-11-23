@@ -90,11 +90,11 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      DHT_STARTPORT: 6881
+      DHT_STARTPORT: 6781
       DHT_NODECOUNT: 20
     ports:
       # DHT 节点端口范围 (UDP)
-      - "6881-6900:6881-6900/udp"
+      - "6781-6890:6781-6890/udp"
     depends_on:
       redpanda:
         condition: service_healthy
