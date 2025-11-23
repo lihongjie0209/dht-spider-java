@@ -3,8 +3,8 @@ package cn.lihongjie.dht.metadata.service;
 import cn.lihongjie.dht.common.model.TorrentMetadata;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +17,6 @@ import java.util.Optional;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class MetadataCacheService {
     
     private static final String CACHE_KEY_PREFIX = "torrent:metadata:";
@@ -25,6 +24,12 @@ public class MetadataCacheService {
     
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    
+    public MetadataCacheService(@Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate, 
+                                ObjectMapper objectMapper) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+    }
     
     /**
      * 缓存元数据
