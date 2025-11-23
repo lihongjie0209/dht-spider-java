@@ -86,7 +86,9 @@ public class DhtNode implements AutoCloseable {
             
             @Override
             public boolean allowMultiHoming() {
-                return true;
+                // 禁用 multihoming，允许在 NAT/Docker 环境中绑定到任意本地地址
+                // 如果为 true，MLDHT 只会绑定到公网 IP，在内网环境下无法创建服务器
+                return false;
             }
         };
         
