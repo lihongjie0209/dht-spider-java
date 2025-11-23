@@ -31,6 +31,10 @@ build:
 
 # 构建所有服务并启动
 build-all:
+	@if [ -d .git ]; then \
+		echo "🔄 检测到 Git 仓库，正在拉取最新代码..."; \
+		git pull || echo "⚠️ Git pull 失败，继续构建"; \
+	fi
 	docker-compose up -d --build
 	@echo "⏳ 等待服务启动..."
 	@sleep 10
@@ -38,12 +42,24 @@ build-all:
 
 # 构建并启动单个服务
 build-mldht:
+	@if [ -d .git ]; then \
+		echo "🔄 检测到 Git 仓库，正在拉取最新代码..."; \
+		git pull || echo "⚠️ Git pull 失败，继续构建"; \
+	fi
 	docker-compose up -d --build dht-mldht
 
 build-btclient:
+	@if [ -d .git ]; then \
+		echo "🔄 检测到 Git 仓库，正在拉取最新代码..."; \
+		git pull || echo "⚠️ Git pull 失败，继续构建"; \
+	fi
 	docker-compose up -d --build dht-bt-client
 
 build-metadata:
+	@if [ -d .git ]; then \
+		echo "🔄 检测到 Git 仓库，正在拉取最新代码..."; \
+		git pull || echo "⚠️ Git pull 失败，继续构建"; \
+	fi
 	docker-compose up -d --build dht-metadata-service
 
 # 启动服务
