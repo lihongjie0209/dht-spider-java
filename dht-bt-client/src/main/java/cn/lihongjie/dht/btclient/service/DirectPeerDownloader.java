@@ -137,12 +137,12 @@ public class DirectPeerDownloader {
                         out.flush();
                         // 读取响应 (msg_type=1)
                         PeerProtocolUtil.MetadataPiece pieceResp = PeerProtocolUtil.readMetadataPiece(in, peerExt.utMetadataId());
-                        if (pieceResp == null || pieceResp.pieceIndex != piece || pieceResp.data == null) {
+                        if (pieceResp == null || pieceResp.pieceIndex() != piece || pieceResp.data() == null) {
                             log.debug("ut_metadata piece mismatch infoHash={} piece={}", infoHashHex, piece);
                             break; // 失败回退
                         }
                         int offset = piece * METADATA_PIECE_SIZE;
-                        int length = Math.min(pieceResp.data.length, metadata.length - offset);
+                        int length = Math.min(pieceResp.data().length, metadata.length - offset);
                         System.arraycopy(pieceResp.data(), 0, metadata, offset, length);
                         written += length;
                     }

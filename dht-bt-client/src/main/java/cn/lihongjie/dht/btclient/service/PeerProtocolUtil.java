@@ -115,7 +115,7 @@ class PeerProtocolUtil {
         int dataOffset = dictStart + dictBytes.length;
         if (dataOffset > body.length) return null;
         byte[] data = new byte[body.length - dataOffset];
-        System.arraycopy(body, data, 0, data.length);
+        System.arraycopy(body, dataOffset, data, 0, data.length);
         return new MetadataPiece(piece, data);
     }
 
