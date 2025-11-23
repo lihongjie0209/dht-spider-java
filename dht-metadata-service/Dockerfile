@@ -6,6 +6,7 @@ WORKDIR /build
 # 复制完整项目结构
 COPY pom.xml .
 COPY dht-common dht-common
+COPY dht-spring-common dht-spring-common
 COPY dht-metadata-service dht-metadata-service
 COPY dht-mldht/pom.xml dht-mldht/pom.xml
 COPY dht-bt-client/pom.xml dht-bt-client/pom.xml
@@ -32,6 +33,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=60s \
 
 # 暴露端口
 EXPOSE 8080
+
+# 去重相关环境变量
+ENV DEDUP_ENABLED=true \
+  DEDUP_BLOOM_KEY=dht:bloom:persisted
 
 # 启动应用
 ENTRYPOINT ["java", "-jar", "app.jar"]

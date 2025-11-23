@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -32,7 +31,6 @@ public class MetadataDownloader {
     private int maxConcurrent;
     
     private final ExecutorService downloadExecutor = Executors.newVirtualThreadPerTaskExecutor();
-    private final Semaphore concurrencyLimit = new Semaphore(100); // 默认值，会在PostConstruct中更新
     private final AtomicInteger activeDownloads = new AtomicInteger(0);
     private final AtomicInteger successCount = new AtomicInteger(0);
     private final AtomicInteger failureCount = new AtomicInteger(0);
@@ -48,17 +46,11 @@ public class MetadataDownloader {
      */
     public CompletableFuture<Torrent> downloadAsync(String infoHash) {
         return CompletableFuture.supplyAsync(() -> {
+            activeDownloads.incrementAndGet();
             try {
-                concurrencyLimit.acquire();
-                activeDownloads.incrementAndGet();
                 return download(infoHash);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("Interrupted while acquiring semaphore for {}", infoHash);
-                return null;
             } finally {
                 activeDownloads.decrementAndGet();
-                concurrencyLimit.release();
             }
         }, downloadExecutor);
     }
@@ -69,24 +61,38 @@ public class MetadataDownloader {
     private Torrent download(String infoHash) {
         log.debug("Starting pooled metadata download for InfoHash: {} (Active: {})", infoHash, activeDownloads.get());
         try {
-            Torrent torrent = btClientPool.download(infoHash, t -> {
-                log.info("Metadata fetched InfoHash={} name={}", infoHash, t.getName());
+            BtClientPool.DownloadResult result = btClientPool.download(infoHash, t -> {
+                log.debug("Callback publishing metadata infoHash={}", infoHash);
                 metadataPublisher.publish(infoHash, t);
             });
-            if (torrent != null) {
-                successCount.incrementAndGet();
-            } else {
-                failureCount.incrementAndGet();
+            switch (result.status()) {
+                case SUCCESS -> {
+                    successCount.incrementAndGet();
+                    log.debug("Download success infoHash={} elapsed={}ms", infoHash, result.elapsedMillis());
+                }
+                case TIMEOUT -> {
+                    failureCount.incrementAndGet();
+                    log.warn("Download timeout infoHash={} elapsed={}ms", infoHash, result.elapsedMillis());
+                }
+                case NO_PEERS -> {
+                    failureCount.incrementAndGet();
+                    log.warn("Download no-peers infoHash={} elapsed={}ms", infoHash, result.elapsedMillis());
+                }
+                case ERROR -> {
+                    failureCount.incrementAndGet();
+                    log.error("Download error infoHash={} elapsed={}ms err={}", infoHash, result.elapsedMillis(),
+                            result.error() != null ? result.error().getMessage() : "unknown");
+                }
             }
-            return torrent;
+            return result.torrent();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             failureCount.incrementAndGet();
-            log.error("Interrupted pooled download InfoHash={}", infoHash);
+            log.error("Interrupted download infoHash={}", infoHash);
             return null;
         } catch (Exception e) {
             failureCount.incrementAndGet();
-            log.error("Error pooled download InfoHash={}: {}", infoHash, e.getMessage());
+            log.error("Unexpected error download infoHash={}: {}", infoHash, e.getMessage());
             return null;
         }
     }
@@ -95,8 +101,7 @@ public class MetadataDownloader {
      * 获取统计信息
      */
     public String getStats() {
-        return String.format("Active=%d Success=%d Failed=%d SemaphoreAvailable=%d Pool=%s", 
-            activeDownloads.get(), successCount.get(), failureCount.get(),
-            concurrencyLimit.availablePermits(), btClientPool.getStats());
+        return String.format("Active=%d Success=%d Failed=%d Pool=%s", 
+            activeDownloads.get(), successCount.get(), failureCount.get(), btClientPool.getStats());
     }
 }

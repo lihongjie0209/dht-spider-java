@@ -6,6 +6,7 @@ WORKDIR /build
 # 复制完整项目结构
 COPY pom.xml .
 COPY dht-common dht-common
+COPY dht-spring-common dht-spring-common
 COPY dht-bt-client dht-bt-client
 COPY dht-mldht/pom.xml dht-mldht/pom.xml
 COPY dht-metadata-service/pom.xml dht-metadata-service/pom.xml
@@ -36,6 +37,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=60s \
 # 暴露 BT 客户端端口范围 (TCP/UDP)
 EXPOSE 6901-6950
 EXPOSE 6901-6950/udp
+
+# 去重相关环境变量
+ENV DEDUP_ENABLED=true \
+  DEDUP_BLOOM_KEY=dht:bloom:downloaded
 
 # 启动应用
 ENTRYPOINT ["java", "-jar", "app.jar"]
