@@ -15,6 +15,7 @@ import java.net.Socket;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.HexFormat;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,7 +32,7 @@ public class DirectPeerDownloader {
     private final BloomFilterService bloomFilterService;
     private final MetadataPublisher metadataPublisher;
 
-    @Value("${download.direct.enabled:false}")
+    @Value("${download.direct.enabled:true}")
     private boolean directEnabled;
 
     @Value("${direct.connect.timeout-millis:1000}")
@@ -67,9 +68,11 @@ public class DirectPeerDownloader {
 
     private DirectResult doHandshakeAndMetadata(String infoHashHex, String ip, int port, String dedupKey) {
         long start = System.nanoTime();
+        log.info("[direct] attempt infoHash={} peer={}:{}", infoHashHex, ip, port);
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(ip, port), connectTimeoutMillis);
             socket.setSoTimeout(handshakeTimeoutMillis);
+            log.info("[direct] connected peer={}:{} localPort={} timeoutMs(connect={},handshake={})", ip, port, socket.getLocalPort(), connectTimeoutMillis, handshakeTimeoutMillis);
             byte[] infoHashBytes = HexFormat.of().parseHex(infoHashHex);
             byte[] peerId = PeerProtocolUtil.generatePeerId();
             byte[] reserved = new byte[8];
@@ -78,34 +81,41 @@ public class DirectPeerDownloader {
 
             byte[] hs = PeerProtocolUtil.buildHandshake(infoHashBytes, peerId, reserved);
             OutputStream out = socket.getOutputStream();
+            log.info("[direct] sending handshake peerId={} reserved={} infoHash={}", new String(peerId), HexFormat.of().formatHex(reserved), infoHashHex);
             out.write(hs);
             out.flush();
 
             InputStream in = socket.getInputStream();
             byte[] resp = in.readNBytes(68); // 标准握手长度
             if (resp.length < 68) {
-                log.debug("Direct handshake short response infoHash={} peer={}:{}", infoHashHex, ip, port);
+                log.info("[direct] handshake SHORT response len={} infoHash={} peer={}:{}", resp.length, infoHashHex, ip, port);
                 bloomFilterService.add(directBloomKey, dedupKey); // 标记尝试过
                 return new DirectResult(false, false);
             }
             // 校验协议字符串长度与内容
             int pstrlen = resp[0] & 0xff;
             if (pstrlen != 19) {
+                log.info("[direct] handshake pstrlen invalid={} expected=19 infoHash={} peer={}:{}", pstrlen, infoHashHex, ip, port);
                 bloomFilterService.add(directBloomKey, dedupKey);
                 return new DirectResult(false, false);
             }
             String proto = new String(resp, 1, 19);
             if (!"BitTorrent protocol".equals(proto)) {
+                log.info("[direct] handshake proto invalid='{}' infoHash={} peer={}:{}", proto, infoHashHex, ip, port);
                 bloomFilterService.add(directBloomKey, dedupKey);
                 return new DirectResult(false, false);
             }
             // 校验 infohash 匹配
             for (int i = 0; i < 20; i++) {
                 if (resp[28 + i] != infoHashBytes[i]) { // 1 + 19 + 8 保留 = 28
+                    log.info("[direct] infoHash mismatch at byte {} expected={} actual={} peer={}:{}", i, infoHashBytes[i] & 0xff, resp[28 + i] & 0xff, ip, port);
                     bloomFilterService.add(directBloomKey, dedupKey);
                     return new DirectResult(false, false);
                 }
             }
+            byte[] peerReserved = Arrays.copyOfRange(resp, 20, 28);
+            byte[] peerPeerId = Arrays.copyOfRange(resp, 48, 68);
+            log.info("[direct] handshake OK proto={} reserved={} peerId={}", proto, HexFormat.of().formatHex(peerReserved), new String(peerPeerId));
             // 扩展握手阶段
             boolean metadataSuccess = false;
             try {
@@ -117,16 +127,23 @@ public class DirectPeerDownloader {
                 root.put("m", m);
                 byte[] extHandshakePayload = bencode.encode(root);
                 byte[] extHandshakeMsg = PeerProtocolUtil.buildExtendedMessage(0, extHandshakePayload);
+                log.info("[direct] sending extended handshake request ut_metadata=1 infoHash={}", infoHashHex);
                 out.write(extHandshakeMsg);
                 out.flush();
 
                 // 读取对方扩展握手
                 PeerProtocolUtil.ExtendedHandshake peerExt = PeerProtocolUtil.readExtendedHandshake(in);
+                if (peerExt == null) {
+                    log.info("[direct] peer extended handshake not received or invalid infoHash={} peer={}:{}", infoHashHex, ip, port);
+                } else {
+                    log.info("[direct] peer extended handshake ut_metadata_id={} metadata_size={} infoHash={}", peerExt.utMetadataId(), peerExt.metadataSize(), infoHashHex);
+                }
                 if (peerExt != null && peerExt.utMetadataId() > 0 && peerExt.metadataSize() > 0 && peerExt.metadataSize() < 2_000_000) {
                     int pieces = (peerExt.metadataSize() + METADATA_PIECE_SIZE - 1) / METADATA_PIECE_SIZE;
                     byte[] metadata = new byte[peerExt.metadataSize()];
                     int written = 0;
                     for (int piece = 0; piece < pieces; piece++) {
+                        log.info("[direct] requesting ut_metadata piece {}/{} infoHash={}", piece, pieces, infoHashHex);
                         // 发送请求 msg_type=0
                         java.util.Map<String,Object> req = new java.util.HashMap<>();
                         req.put("msg_type", 0L);
@@ -138,13 +155,14 @@ public class DirectPeerDownloader {
                         // 读取响应 (msg_type=1)
                         PeerProtocolUtil.MetadataPiece pieceResp = PeerProtocolUtil.readMetadataPiece(in, peerExt.utMetadataId());
                         if (pieceResp == null || pieceResp.pieceIndex() != piece || pieceResp.data() == null) {
-                            log.debug("ut_metadata piece mismatch infoHash={} piece={}", infoHashHex, piece);
+                            log.info("[direct] ut_metadata piece mismatch or null infoHash={} expectedPiece={}", infoHashHex, piece);
                             break; // 失败回退
                         }
                         int offset = piece * METADATA_PIECE_SIZE;
                         int length = Math.min(pieceResp.data().length, metadata.length - offset);
                         System.arraycopy(pieceResp.data(), 0, metadata, offset, length);
                         written += length;
+                        log.info("[direct] received ut_metadata piece index={} size={} accumulated={}/{} infoHash={}", pieceResp.pieceIndex(), pieceResp.data().length, written, peerExt.metadataSize(), infoHashHex);
                     }
                     if (written == peerExt.metadataSize()) {
                         // 直接发布 raw info 字典
@@ -154,16 +172,16 @@ public class DirectPeerDownloader {
                     }
                 }
             } catch (Exception extEx) {
-                log.debug("Extended metadata fetch failed infoHash={} peer={}:{} reason={}", infoHashHex, ip, port, extEx.getMessage());
+                log.info("[direct] extended metadata fetch failed infoHash={} peer={}:{} reason={}", infoHashHex, ip, port, extEx.getMessage());
             }
             bloomFilterService.add(directBloomKey, dedupKey);
             long elapsedMs = Duration.ofNanos(System.nanoTime() - start).toMillis();
-            log.info("Direct handshake SUCCESS infoHash={} peer={}:{} elapsed={}ms earlyMetadata={}", infoHashHex, ip, port, elapsedMs, metadataSuccess);
+            log.info("[direct] handshake SUCCESS infoHash={} peer={}:{} elapsed={}ms earlyMetadata={}", infoHashHex, ip, port, elapsedMs, metadataSuccess);
             return new DirectResult(true, metadataSuccess);
         } catch (Exception e) {
             bloomFilterService.add(directBloomKey, dedupKey);
             long elapsedMs = Duration.ofNanos(System.nanoTime() - start).toMillis();
-            log.debug("Direct handshake FAIL infoHash={} peer={}:{} elapsed={}ms reason={}", infoHashHex, ip, port, elapsedMs, e.getMessage());
+            log.info("[direct] handshake FAIL infoHash={} peer={}:{} elapsed={}ms reason={}", infoHashHex, ip, port, elapsedMs, e.getMessage());
             return new DirectResult(false, false);
         }
     }
