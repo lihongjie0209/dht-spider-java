@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 直接对 Announce 中的 peer 发起 BitTorrent 握手尝试，快速直连获取后续元数据的可能性。
@@ -152,9 +153,29 @@ public class DirectPeerDownloader {
                         byte[] reqMsg = PeerProtocolUtil.buildExtendedMessage(peerExt.utMetadataId(), reqPayload);
                         out.write(reqMsg);
                         out.flush();
-                        // 读取响应 (msg_type=1)
-                        PeerProtocolUtil.MetadataPiece pieceResp = PeerProtocolUtil.readMetadataPiece(in, peerExt.utMetadataId());
-                        if (pieceResp == null || pieceResp.pieceIndex() != piece || pieceResp.data() == null) {
+                        // 读取响应 (msg_type=1)。可能会先收到与本次请求无关的扩展消息，这里做一次短暂轮询跳过。
+                        PeerProtocolUtil.MetadataPiece pieceResp = null;
+                        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(handshakeTimeoutMillis);
+                        while (System.nanoTime() < deadline) {
+                            try {
+                                PeerProtocolUtil.MetadataPiece cand = PeerProtocolUtil.readMetadataPiece(in, peerExt.utMetadataId());
+                                if (cand == null) {
+                                    continue; // 跳过非 ut_metadata 或无效消息
+                                }
+                                if (cand.pieceIndex() == piece && cand.data() != null) {
+                                    pieceResp = cand;
+                                    break;
+                                } else {
+                                    // 非期望的 piece，继续读取直到超时
+                                    log.debug("[direct] skip non-matching ut_metadata piece receivedPiece={} expectedPiece={} size={} infoHash={}",
+                                            cand.pieceIndex(), piece, cand.data() == null ? -1 : cand.data().length, infoHashHex);
+                                }
+                            } catch (Exception readEx) {
+                                // 超时或读取异常，结束本次 piece 尝试
+                                break;
+                            }
+                        }
+                        if (pieceResp == null) {
                             log.info("[direct] ut_metadata piece mismatch or null infoHash={} expectedPiece={}", infoHashHex, piece);
                             break; // 失败回退
                         }
