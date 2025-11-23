@@ -2,6 +2,7 @@ package cn.lihongjie.dht.mldht.service;
 
 import cn.lihongjie.dht.common.constants.KafkaTopics;
 import cn.lihongjie.dht.common.model.InfoHashMessage;
+import cn.lihongjie.dht.common.util.BloomFilterUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,12 +10,11 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * InfoHash发布服务
- * 负责去重和发布InfoHash到Kafka
+ * 负责使用Bloom Filter去重和发布InfoHash到Kafka
  */
 @Slf4j
 @Service
@@ -27,8 +27,8 @@ public class InfoHashPublisher {
     @Value("${dedup.enabled:true}")
     private boolean dedupEnabled;
     
-    @Value("${dedup.ttl.days:7}")
-    private long dedupTtlDays;
+    @Value("${dedup.bloom.key:dht:bloom:infohash}")
+    private String bloomFilterKey;
     
     private final AtomicLong publishedCount = new AtomicLong(0);
     private final AtomicLong duplicateCount = new AtomicLong(0);
@@ -73,29 +73,38 @@ public class InfoHashPublisher {
     }
     
     /**
-     * 检查InfoHash是否已经处理过
+     * 检查InfoHash是否已经处理过（使用Redis原生BF.MEXISTS命令）
      */
     private boolean isDuplicate(String infoHash) {
         try {
-            String key = "dht:dedup:infohash:" + infoHash;
-            Boolean exists = redisTemplate.hasKey(key);
-            return Boolean.TRUE.equals(exists);
+            // 使用Redis原生Bloom Filter命令：BF.MEXISTS key item
+            Object result = redisTemplate.execute(
+                (connection) -> connection.execute("BF.MEXISTS", 
+                    bloomFilterKey.getBytes(), infoHash.getBytes()),
+                true
+            );
+            
+            // 返回1表示可能存在，0表示肯定不存在
+            return result != null && "1".equals(result.toString());
         } catch (Exception e) {
-            log.error("Error checking duplicate for InfoHash: {}", infoHash, e);
-            // 出错时不去重，避免丢失数据
-            return false;
+            log.error("Bloom Filter check failed for {}: {}", infoHash, e.getMessage());
+            return false; // 出错时放行，避免丢失数据
         }
     }
     
     /**
-     * 标记InfoHash为已处理
+     * 标记InfoHash为已处理（使用Redis原生BF.MADD命令）
      */
     private void markAsProcessed(String infoHash) {
         try {
-            String key = "dht:dedup:infohash:" + infoHash;
-            redisTemplate.opsForValue().set(key, "1", Duration.ofDays(dedupTtlDays));
+            // 使用Redis原生Bloom Filter命令：BF.MADD key item
+            redisTemplate.execute(
+                (connection) -> connection.execute("BF.MADD", 
+                    bloomFilterKey.getBytes(), infoHash.getBytes()),
+                true
+            );
         } catch (Exception e) {
-            log.error("Error marking InfoHash as processed: {}", infoHash, e);
+            log.error("Bloom Filter mark failed for {}: {}", infoHash, e.getMessage());
         }
     }
     
