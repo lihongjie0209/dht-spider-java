@@ -51,6 +51,15 @@ public class DirectPeerDownloader {
 
     public static final int METADATA_PIECE_SIZE = PeerProtocolUtil.METADATA_PIECE_SIZE; // reuse constant
 
+    @Value("${direct.metadata.inter-request-delay-ms:50}")
+    private int metadataInterRequestDelayMillis;
+
+    @Value("${direct.metadata.retry.max-attempts:2}")
+    private int metadataMaxRetries;
+
+    @Value("${direct.metadata.retry.initial-delay-ms:100}")
+    private int metadataRetryInitialDelayMillis;
+
     public record DirectResult(boolean handshakeSuccess, boolean metadataSuccess) {}
 
     /**
@@ -144,35 +153,53 @@ public class DirectPeerDownloader {
                     byte[] metadata = new byte[peerExt.metadataSize()];
                     int written = 0;
                     for (int piece = 0; piece < pieces; piece++) {
+                        if (piece > 0 && metadataInterRequestDelayMillis > 0) {
+                            try { Thread.sleep(metadataInterRequestDelayMillis); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                        }
                         log.info("[direct] requesting ut_metadata piece {}/{} infoHash={}", piece, pieces, infoHashHex);
-                        // 发送请求 msg_type=0
-                        java.util.Map<String,Object> req = new java.util.HashMap<>();
-                        req.put("msg_type", 0L);
-                        req.put("piece", (long) piece);
-                        byte[] reqPayload = bencode.encode(req);
-                        byte[] reqMsg = PeerProtocolUtil.buildExtendedMessage(peerExt.utMetadataId(), reqPayload);
-                        out.write(reqMsg);
-                        out.flush();
-                        // 读取响应 (msg_type=1)。可能会先收到与本次请求无关的扩展消息，这里做一次短暂轮询跳过。
                         PeerProtocolUtil.MetadataPiece pieceResp = null;
-                        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(handshakeTimeoutMillis);
-                        while (System.nanoTime() < deadline) {
-                            try {
-                                PeerProtocolUtil.MetadataPiece cand = PeerProtocolUtil.readMetadataPiece(in, peerExt.utMetadataId());
-                                if (cand == null) {
-                                    continue; // 跳过非 ut_metadata 或无效消息
-                                }
-                                if (cand.pieceIndex() == piece && cand.data() != null) {
-                                    pieceResp = cand;
+                        int attempts = 0;
+                        long backoff = Math.max(0, metadataRetryInitialDelayMillis);
+                        while (attempts <= metadataMaxRetries) {
+                            // 发送请求 msg_type=0
+                            java.util.Map<String,Object> req = new java.util.HashMap<>();
+                            req.put("msg_type", 0L);
+                            req.put("piece", (long) piece);
+                            byte[] reqPayload = bencode.encode(req);
+                            byte[] reqMsg = PeerProtocolUtil.buildExtendedMessage(peerExt.utMetadataId(), reqPayload);
+                            out.write(reqMsg);
+                            out.flush();
+
+                            // 读取响应 (msg_type=1)。可能会先收到与本次请求无关的扩展消息，这里做一次短暂轮询跳过。
+                            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(handshakeTimeoutMillis);
+                            while (System.nanoTime() < deadline) {
+                                try {
+                                    PeerProtocolUtil.MetadataPiece cand = PeerProtocolUtil.readMetadataPiece(in, peerExt.utMetadataId());
+                                    if (cand == null) {
+                                        continue; // 跳过非 ut_metadata 或无效消息
+                                    }
+                                    if (cand.pieceIndex() == piece && cand.data() != null) {
+                                        pieceResp = cand;
+                                        break;
+                                    } else {
+                                        // 非期望的 piece，继续读取直到超时
+                                        log.debug("[direct] skip non-matching ut_metadata piece receivedPiece={} expectedPiece={} size={} infoHash={}",
+                                                cand.pieceIndex(), piece, cand.data() == null ? -1 : cand.data().length, infoHashHex);
+                                    }
+                                } catch (Exception readEx) {
+                                    // 读取异常，跳出到重试逻辑
                                     break;
-                                } else {
-                                    // 非期望的 piece，继续读取直到超时
-                                    log.debug("[direct] skip non-matching ut_metadata piece receivedPiece={} expectedPiece={} size={} infoHash={}",
-                                            cand.pieceIndex(), piece, cand.data() == null ? -1 : cand.data().length, infoHashHex);
                                 }
-                            } catch (Exception readEx) {
-                                // 超时或读取异常，结束本次 piece 尝试
-                                break;
+                            }
+                            if (pieceResp != null) {
+                                break; // 成功
+                            }
+                            attempts++;
+                            if (attempts <= metadataMaxRetries) {
+                                log.info("[direct] ut_metadata piece not received, retrying attempt {}/{} backoff={}ms infoHash={} expectedPiece={}",
+                                        attempts, metadataMaxRetries, backoff, infoHashHex, piece);
+                                try { Thread.sleep(backoff); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                                backoff = Math.min(backoff * 2, 5000); // 上限 5s
                             }
                         }
                         if (pieceResp == null) {
