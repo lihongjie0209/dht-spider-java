@@ -3,6 +3,7 @@ package cn.lihongjie.dht.springcommon.bloom;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import io.lettuce.core.RedisCommandExecutionException;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
@@ -31,14 +32,18 @@ public class BloomFilterService {
      */
     public void reserve(String key, double errorRate, long capacity) {
         try {
-            Object exists = redisTemplate.getConnectionFactory().getConnection().execute("EXISTS", key.getBytes());
-            if (exists != null && "1".equals(exists.toString())) {
-                return; // 已存在
-            }
+            // 直接尝试创建，若已存在会抛出 "ERR item exists"，忽略该错误即可
             redisTemplate.execute(BF_RESERVE_SCRIPT,
                     Collections.singletonList(key),
                     String.valueOf(errorRate), String.valueOf(capacity));
             log.info("Bloom Filter reserved: {} (errorRate={}, capacity={})", key, errorRate, capacity);
+        } catch (RedisCommandExecutionException rex) {
+            if (rex.getMessage() != null && rex.getMessage().contains("item exists")) {
+                // 并发/重复初始化的正常情况：已有同名 Bloom Filter
+                log.debug("Bloom Filter already exists: {} (ignored)", key);
+            } else {
+                log.error("Failed to reserve Bloom Filter {}", key, rex);
+            }
         } catch (Exception e) {
             log.error("Failed to reserve Bloom Filter {}", key, e);
         }
