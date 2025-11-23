@@ -3,12 +3,10 @@ package cn.lihongjie.dht.metadata.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 
 @Slf4j
-@Service
 public class BloomFilterService {
     private static final DefaultRedisScript<Long> BF_EXISTS_SCRIPT =
             new DefaultRedisScript<>("return redis.call('BF.EXISTS', KEYS[1], ARGV[1])", Long.class);
