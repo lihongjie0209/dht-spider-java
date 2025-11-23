@@ -3,17 +3,12 @@ FROM maven:3.9-eclipse-temurin-17 AS builder
 
 WORKDIR /build
 
-# 复制 POM 文件
+# 复制完整项目结构
 COPY pom.xml .
-COPY dht-common/pom.xml dht-common/
-COPY dht-metadata-service/pom.xml dht-metadata-service/
-
-# 下载依赖（利用 Docker 缓存层）
-RUN mvn dependency:go-offline -pl dht-metadata-service -am
-
-# 复制源代码
-COPY dht-common/src dht-common/src
-COPY dht-metadata-service/src dht-metadata-service/src
+COPY dht-common dht-common
+COPY dht-metadata-service dht-metadata-service
+COPY dht-mldht/pom.xml dht-mldht/pom.xml
+COPY dht-bt-client/pom.xml dht-bt-client/pom.xml
 
 # 构建项目
 RUN mvn clean package -pl dht-metadata-service -am -DskipTests
