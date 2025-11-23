@@ -54,7 +54,7 @@
             <version>1.10</version>
         </dependency>
 
-        <!-- Libtorrent4j (core + Windows native) -->
+        <!-- Libtorrent4j (core + Windows + Linux natives) -->
         <dependency>
             <groupId>org.libtorrent4j</groupId>
             <artifactId>libtorrent4j</artifactId>
@@ -65,7 +65,6 @@
             <artifactId>libtorrent4j-windows</artifactId>
             <version>2.1.0-38</version>
         </dependency>
-        <!-- Libtorrent4j native for Linux -->
         <dependency>
             <groupId>org.libtorrent4j</groupId>
             <artifactId>libtorrent4j-linux</artifactId>
