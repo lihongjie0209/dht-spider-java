@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 元数据服务主类
  * Spring Boot Web应用，提供REST API用于查询种子元数据
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "cn.lihongjie.dht")
 public class MetadataServiceApplication {
     
     public static void main(String[] args) {
