@@ -37,16 +37,25 @@ public class BloomFilterService {
                     Collections.singletonList(key),
                     String.valueOf(errorRate), String.valueOf(capacity));
             log.info("Bloom Filter reserved: {} (errorRate={}, capacity={})", key, errorRate, capacity);
-        } catch (RedisCommandExecutionException rex) {
-            if (rex.getMessage() != null && rex.getMessage().contains("item exists")) {
-                // 并发/重复初始化的正常情况：已有同名 Bloom Filter
-                log.debug("Bloom Filter already exists: {} (ignored)", key);
-            } else {
-                log.error("Failed to reserve Bloom Filter {}", key, rex);
-            }
         } catch (Exception e) {
+            if (containsItemExists(e)) {
+                // 并发/重复初始化：已有同名 Bloom Filter，视为成功
+                log.debug("Bloom Filter already exists: {} (ignored)", key);
+                return;
+            }
             log.error("Failed to reserve Bloom Filter {}", key, e);
         }
+    }
+
+    private boolean containsItemExists(Throwable t) {
+        while (t != null) {
+            String msg = t.getMessage();
+            if (msg != null && msg.toLowerCase().contains("item exists")) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
     /**
