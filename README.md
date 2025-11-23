@@ -388,7 +388,7 @@ dht-spider-java/
 └── pom.xml                  # 父POM
 ```
 
-## 模块说明
+## 📚 模块说明
 
 ### 1. dht-common
 通用模块，包含：
@@ -416,7 +416,7 @@ BT客户端服务（Spring Boot应用，无Web）：
 - 存储到PostgreSQL数据库
 - 提供REST API查询接口
 
-## 中间件
+## 🔧 中间件
 
 - **RedPanda**（Kafka兼容）：模块间消息传递
 - **Redis**：全局去重和缓存
