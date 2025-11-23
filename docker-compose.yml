@@ -124,6 +124,8 @@ services:
       # BT 客户端端口范围 (TCP/UDP)
       - "6901-6950:6901-6950"
       - "6901-6950:6901-6950/udp"
+      - "49001:49001/udp"  # DHT 服务端口 (必需)
+      - "6891:6891/tcp"   # BT 客户端端口 (如果不是随机)
     depends_on:
       redpanda:
         condition: service_healthy

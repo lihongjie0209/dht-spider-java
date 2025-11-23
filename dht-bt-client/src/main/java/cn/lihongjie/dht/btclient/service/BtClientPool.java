@@ -39,7 +39,7 @@ public class BtClientPool {
     public BtClientPool(BtRuntime runtime,
                         Path storagePath,
                         @Value("${bt.pool.size:100}") int poolSize,
-                        @Value("${bt.download.timeout-seconds:60}") int timeoutSeconds) {
+                        @Value("${bt.download.timeout-seconds:120}") int timeoutSeconds) {
         this.runtime = runtime;
         this.storagePath = storagePath;
         this.poolSize = poolSize;

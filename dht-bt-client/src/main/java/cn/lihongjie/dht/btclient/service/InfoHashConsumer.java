@@ -55,37 +55,29 @@ public class InfoHashConsumer {
                 return;
             }
             
-            // 直连尝试（快速握手，不阻塞整体逻辑）
+            // 先尝试直连获取 ut_metadata，若成功则跳过后续下载
             if (message.getSourceIp() != null && message.getSourcePort() != null) {
-                directPeerDownloader.tryDirect(infoHash, message.getSourceIp(), message.getSourcePort())
-                        .thenAccept(success -> {
-                            if (success) {
-                                log.debug("Direct peer handshake succeeded infoHash={} peer={}:{}", infoHash, message.getSourceIp(), message.getSourcePort());
+                directPeerDownloader.tryDirectAndFetch(infoHash, message.getSourceIp(), message.getSourcePort())
+                        .whenComplete((result, ex) -> {
+                            if (ex != null) {
+                                log.debug("Direct attempt error infoHash={} reason={}", infoHash, ex.getMessage());
+                                fallbackDownload(infoHash, acknowledgment);
+                            } else if (result.metadataSuccess()) {
+                                log.info("Early ut_metadata success infoHash={} (handshake={})", infoHash, result.handshakeSuccess());
+                                if (dedupEnabled) {
+                                    bloomFilterService.add(bloomFilterKey, infoHash);
+                                }
+                                processedCount.incrementAndGet();
+                                acknowledgment.acknowledge();
+                            } else {
+                                // 未成功获取元数据，回退
+                                fallbackDownload(infoHash, acknowledgment);
                             }
                         });
+            } else {
+                // 没有 peer 信息直接执行常规下载
+                fallbackDownload(infoHash, acknowledgment);
             }
-
-            // 异步下载元数据（原有逻辑）
-            metadataDownloader.downloadAsync(infoHash)
-                .whenComplete((metadata, ex) -> {
-                    if (ex != null) {
-                        log.error("Failed to download metadata for InfoHash: {}", infoHash, ex);
-                    } else if (metadata != null) {
-                        log.info("Successfully downloaded metadata for InfoHash: {}, name: {}", 
-                                infoHash, metadata.getName());
-                        
-                        // 下载成功后标记为已处理
-                        if (dedupEnabled) {
-                            bloomFilterService.add(bloomFilterKey, infoHash);
-                        }
-                        processedCount.incrementAndGet();
-                    } else {
-                        log.warn("No metadata downloaded for InfoHash: {}", infoHash);
-                    }
-                    
-                    // 无论成功失败都确认消息
-                    acknowledgment.acknowledge();
-                });
             
         } catch (Exception e) {
             log.error("Error processing InfoHash message", e);
@@ -93,4 +85,22 @@ public class InfoHashConsumer {
         }
     }
     
+    private void fallbackDownload(String infoHash, Acknowledgment acknowledgment) {
+        metadataDownloader.downloadAsync(infoHash)
+                .whenComplete((metadata, ex) -> {
+                    if (ex != null) {
+                        log.error("Failed to download metadata for InfoHash: {}", infoHash, ex);
+                    } else if (metadata != null) {
+                        log.info("Successfully downloaded metadata for InfoHash: {}, name: {}",
+                                infoHash, metadata.getName());
+                        if (dedupEnabled) {
+                            bloomFilterService.add(bloomFilterKey, infoHash);
+                        }
+                        processedCount.incrementAndGet();
+                    } else {
+                        log.warn("No metadata downloaded for InfoHash: {}", infoHash);
+                    }
+                    acknowledgment.acknowledge();
+                });
+    }
 }
