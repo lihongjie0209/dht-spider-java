@@ -100,11 +100,18 @@ class PeerProtocolUtil {
         byte[] body = in.readNBytes(len);
         if (body.length < len) return null;
         if (body[0] != 20 || body[1] != (byte) utMetadataId) return null;
-        int dictStart = 2;
-        int dictEnd = findBencodeElementEnd(body, dictStart);
-        if (dictEnd < 0) return null;
-        byte[] dictBytes = new byte[dictEnd - dictStart + 1];
-        System.arraycopy(body, dictStart, dictBytes, 0, dictBytes.length);
+        
+        // 使用 ISO-8859-1 转字符串查找 bencode 字典结尾 "ee"（参考 PeerWireClient 实现）
+        // 这是最可靠的方式，因为 bencode 字典后直接跟二进制 piece 数据
+        String str = new String(body, 2, body.length - 2, java.nio.charset.StandardCharsets.ISO_8859_1);
+        int eePos = str.indexOf("ee");
+        if (eePos < 0) return null;
+        
+        // 字典部分：body[2] 到 body[2 + eePos + 1]（包含 "ee"）
+        int dictLen = eePos + 2;
+        byte[] dictBytes = new byte[dictLen];
+        System.arraycopy(body, 2, dictBytes, 0, dictLen);
+        
         Object decoded;
         try { decoded = BENCODE.decode(dictBytes, Type.DICTIONARY); } catch (Exception ignore) { return null; }
         if (!(decoded instanceof java.util.Map)) return null;
@@ -112,7 +119,9 @@ class PeerProtocolUtil {
         int msgType = mp.get("msg_type") instanceof Number ? ((Number) mp.get("msg_type")).intValue() : -1;
         int piece = mp.get("piece") instanceof Number ? ((Number) mp.get("piece")).intValue() : -1;
         if (msgType != 1 || piece < 0) return null;
-        int dataOffset = dictStart + dictBytes.length;
+        
+        // piece 数据从字典结尾后开始
+        int dataOffset = 2 + dictLen;
         if (dataOffset > body.length) return null;
         byte[] data = new byte[body.length - dataOffset];
         System.arraycopy(body, dataOffset, data, 0, data.length);
