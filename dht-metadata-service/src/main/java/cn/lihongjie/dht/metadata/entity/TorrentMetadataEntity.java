@@ -39,10 +39,6 @@ public class TorrentMetadataEntity {
     @Column(columnDefinition = "TEXT")
     private String filesJson;
     
-    @Lob
-    @Column(columnDefinition = "BLOB")
-    private byte[] rawMetadata;
-    
     @Column(nullable = false)
     private Instant createdAt;
     
