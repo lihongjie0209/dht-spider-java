@@ -94,7 +94,7 @@ public class DhtNode implements AutoCloseable {
         
         // 创建DHT实例（IPv4）
         dht = new DHT(DHTtype.IPV4_DHT);
-        dht.setLogLevel(LogLevel.Debug); // 改为Debug级别查看详细日志
+        dht.setLogLevel(LogLevel.Error); // 只记录错误日志，减少RPC噪音
         
         // 如果指定了NodeId，使用指定的ID
         if (nodeId != null && nodeId.length == 20) {
