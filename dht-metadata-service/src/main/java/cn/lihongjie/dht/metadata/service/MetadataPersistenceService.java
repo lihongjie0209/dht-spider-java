@@ -4,7 +4,6 @@ import cn.lihongjie.dht.common.model.TorrentMetadata;
 import cn.lihongjie.dht.metadata.entity.TorrentFileEntity;
 import cn.lihongjie.dht.metadata.entity.TorrentMetadataEntity;
 import cn.lihongjie.dht.metadata.repository.TorrentMetadataRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -21,14 +20,21 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class MetadataPersistenceService {
-    
     private final TorrentMetadataRepository repository;
     private final MetadataCacheService cacheService;
     private final MetadataStatsService statsService;
-    @Qualifier("redisTemplate")
     private final RedisTemplate<String, String> redisTemplate;
+
+    public MetadataPersistenceService(TorrentMetadataRepository repository,
+                                      MetadataCacheService cacheService,
+                                      MetadataStatsService statsService,
+                                      @Qualifier("redisTemplate") RedisTemplate<String, String> redisTemplate) {
+        this.repository = repository;
+        this.cacheService = cacheService;
+        this.statsService = statsService;
+        this.redisTemplate = redisTemplate;
+    }
     
     @Value("${dedup.enabled:true}")
     private boolean dedupEnabled;
