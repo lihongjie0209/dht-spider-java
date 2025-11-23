@@ -55,8 +55,21 @@ public class MetadataPersistenceService {
             // Bloom Filter说不存在，直接保存（跳过数据库查询）
             log.debug("Bloom Filter: {} not exists, saving directly", infoHash);
         } else if (repository.existsByInfoHash(infoHash)) {
-            // 第二级：数据库查询（处理Bloom Filter误判）
-            log.debug("Metadata already exists for InfoHash: {}, skipping", infoHash);
+            // 已存在则更新状态（以及可用的基础信息），避免重复插入
+            repository.findByInfoHash(infoHash).ifPresent(entity -> {
+                if (metadata.getStatus() != null) {
+                    entity.setStatus(metadata.getStatus());
+                }
+                if (metadata.getName() != null && (entity.getName() == null || "FAILED".equalsIgnoreCase(entity.getStatus()))) {
+                    entity.setName(metadata.getName());
+                }
+                if (metadata.getTotalSize() != null && metadata.getTotalSize() > 0 && (entity.getTotalSize() == null || entity.getTotalSize() == 0)) {
+                    entity.setTotalSize(metadata.getTotalSize());
+                }
+                entity.setUpdatedAt(Instant.now());
+                repository.save(entity);
+                log.debug("Updated existing metadata for InfoHash: {} with status={} ", infoHash, entity.getStatus());
+            });
             return;
         }
         
@@ -78,8 +91,8 @@ public class MetadataPersistenceService {
             // 统计
             statsService.incrementPersisted();
             
-            log.info("Saved metadata for InfoHash: {}, name: {}, size: {} bytes", 
-                    infoHash, metadata.getName(), metadata.getTotalSize());
+            log.info("Saved metadata for InfoHash: {}, status: {}, name: {}, size: {} bytes", 
+                    infoHash, metadata.getStatus(), metadata.getName(), metadata.getTotalSize());
             
         } catch (Exception e) {
             log.error("Failed to save metadata for InfoHash: {}", infoHash, e);
@@ -111,6 +124,7 @@ public class MetadataPersistenceService {
                 .infoHash(metadata.getInfoHash())
                 .name(metadata.getName())
                 .totalSize(metadata.getTotalSize())
+                .status(metadata.getStatus() != null ? metadata.getStatus() : "SUCCESS")
                 .createdAt(now)
                 .updatedAt(now)
                 .build();

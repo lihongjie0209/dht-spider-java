@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 public class FailedMetadataConsumerService {
 
     private final MetadataStatsService statsService;
+    private final MetadataPersistenceService persistenceService;
     private final ObjectMapper objectMapper;
 
     @KafkaListener(
@@ -29,8 +30,12 @@ public class FailedMetadataConsumerService {
         try {
             TorrentMetadata metadata = objectMapper.readValue(message, TorrentMetadata.class);
             String infoHash = metadata.getInfoHash();
+            if (metadata.getStatus() == null) {
+                metadata.setStatus("FAILED");
+            }
+            // 入库（保存或更新状态）
+            persistenceService.save(metadata);
             log.info("Consumed FAILED metadata infoHash={} status={}", infoHash, metadata.getStatus());
-            // 后续如需入库，可在此处调用持久化服务并加上状态字段
         } catch (Exception e) {
             log.warn("Failed to parse FAILED metadata message: {}", message, e);
         }

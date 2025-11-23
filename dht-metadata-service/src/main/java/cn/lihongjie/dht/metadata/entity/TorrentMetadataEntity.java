@@ -32,11 +32,14 @@ public class TorrentMetadataEntity {
     @Column(nullable = false, length = 40)
     private String infoHash;
     
-    @Column(nullable = false, length = 500)
+    @Column(nullable = true, length = 500)
     private String name;
     
     @Column(nullable = false)
     private Long totalSize;
+
+    @Column(nullable = false, length = 16)
+    private String status;
     
     @OneToMany(mappedBy = "metadata", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
