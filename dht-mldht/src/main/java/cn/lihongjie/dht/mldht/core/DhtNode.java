@@ -123,14 +123,25 @@ public class DhtNode implements AutoCloseable {
         // 启动DHT（会自动触发 bootstrap 流程）
         dht.start(config);
         
-        // 等待DHT初始化完成
-        Thread.sleep(2000);
+        // 等待DHT初始化和服务器绑定
+        log.info("Node {} waiting for DHT initialization...", nodeIndex);
+        Thread.sleep(3000);
+        
+        // 检查服务器状态
+        int serverCount = dht.getServerManager().getServerCount();
+        int activeServerCount = dht.getServerManager().getActiveServerCount();
+        
+        log.info("DHT Node {} started - Port: {}, Type: {}, Running: {}, Servers: {}/{}, RoutingTableSize: {}", 
+                 nodeIndex, port, dht.getType(), dht.isRunning(), 
+                 activeServerCount, serverCount,
+                 dht.getNode().getNumEntriesInRoutingTable());
+        
+        if (serverCount == 0) {
+            log.error("Node {} CRITICAL: No RPC servers created! DHT cannot bind to port {}. Check firewall/permissions.", 
+                      nodeIndex, port);
+        }
         
         running.set(true);
-        
-        log.info("DHT Node {} started on port {}, Type: {}, Running: {}, RoutingTableSize: {}", 
-                 nodeIndex, port, dht.getType(), dht.isRunning(), 
-                 dht.getNode().getNumEntriesInRoutingTable());
         
         // 等待DHT运行（阻塞当前线程）
         int statsInterval = 0;
