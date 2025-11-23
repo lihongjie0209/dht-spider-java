@@ -24,6 +24,7 @@ public class InfoHashConsumer {
     
     private final MetadataDownloader metadataDownloader;
     private final BloomFilterService bloomFilterService;
+    private final DirectPeerDownloader directPeerDownloader;
     
     @Value("${dedup.enabled:true}")
     private boolean dedupEnabled;
@@ -54,7 +55,17 @@ public class InfoHashConsumer {
                 return;
             }
             
-            // 异步下载元数据
+            // 直连尝试（快速握手，不阻塞整体逻辑）
+            if (message.getSourceIp() != null && message.getSourcePort() != null) {
+                directPeerDownloader.tryDirect(infoHash, message.getSourceIp(), message.getSourcePort())
+                        .thenAccept(success -> {
+                            if (success) {
+                                log.debug("Direct peer handshake succeeded infoHash={} peer={}:{}", infoHash, message.getSourceIp(), message.getSourcePort());
+                            }
+                        });
+            }
+
+            // 异步下载元数据（原有逻辑）
             metadataDownloader.downloadAsync(infoHash)
                 .whenComplete((metadata, ex) -> {
                     if (ex != null) {
