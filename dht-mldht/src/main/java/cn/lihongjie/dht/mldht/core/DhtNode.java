@@ -76,7 +76,7 @@ public class DhtNode implements AutoCloseable {
             
             @Override
             public boolean noRouterBootstrap() {
-                return false;
+                return true; // 禁用路由器发现，手动添加bootstrap节点
             }
             
             @Override
@@ -87,7 +87,7 @@ public class DhtNode implements AutoCloseable {
         
         // 创建DHT实例（IPv4）
         dht = new DHT(DHTtype.IPV4_DHT);
-        dht.setLogLevel(LogLevel.Info);
+        dht.setLogLevel(LogLevel.Debug); // 改为Debug级别查看详细日志
         
         // 如果指定了NodeId，使用指定的ID
         if (nodeId != null && nodeId.length == 20) {
@@ -118,31 +118,54 @@ public class DhtNode implements AutoCloseable {
         // 启动DHT
         dht.start(config);
         
+        // 等待DHT初始化完成
+        Thread.sleep(1000);
+        
+        log.info("DHT Node {} started on port {}, Type: {}, Running: {}", 
+                 nodeIndex, port, dht.getType(), dht.isRunning());
+        
         // 添加bootstrap节点
+        int addedNodes = 0;
         for (String bootstrapNode : bootstrapNodes) {
             try {
                 String[] parts = bootstrapNode.split(":");
                 String host = parts[0];
                 int bootstrapPort = Integer.parseInt(parts[1]);
                 
-                InetSocketAddress address = new InetSocketAddress(host, bootstrapPort);
-                dht.addDHTNode(address.getHostString(), bootstrapPort);
+                // 先解析地址
+                InetAddress address = InetAddress.getByName(host);
+                dht.addDHTNode(address.getHostAddress(), bootstrapPort);
                 
-                log.debug("Node {} added bootstrap node: {}:{}", nodeIndex, host, bootstrapPort);
+                addedNodes++;
+                log.info("Node {} added bootstrap node: {} ({}:{})", 
+                         nodeIndex, bootstrapNode, address.getHostAddress(), bootstrapPort);
             } catch (Exception e) {
                 log.warn("Node {} failed to add bootstrap node: {}", nodeIndex, bootstrapNode, e);
             }
         }
         
+        log.info("Node {} added {}/{} bootstrap nodes successfully", 
+                 nodeIndex, addedNodes, bootstrapNodes.size());
+        
+        // 等待bootstrap完成
+        Thread.sleep(3000);
+        
         running.set(true);
         
-        log.info("DHT Node {} started on port {}, Type: {}", 
-                 nodeIndex, port, dht.getType());
+        log.info("Node {} bootstrap complete, waiting for messages...", nodeIndex);
         
         // 等待DHT运行（阻塞当前线程）
+        int statsInterval = 0;
         while (running.get()) {
             try {
                 Thread.sleep(1000);
+                statsInterval++;
+                
+                // 每30秒输出统计信息
+                if (statsInterval % 30 == 0) {
+                    log.info("Node {} Stats: Running={}, Messages={}, Discovered={}", 
+                             nodeIndex, dht.isRunning(), messageCount.get(), discoveredCount.get());
+                }
                 
                 // 检查DHT状态
                 if (!dht.isRunning()) {
