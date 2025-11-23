@@ -1,0 +1,15 @@
+{
+  "name": "dht-spider-java",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["vscjava.vscode-java-pack", "github.copilot-chat"]
+    }
+  },
+  "forwardPorts": [6379],
+  "remoteUser": "vscode"
+}

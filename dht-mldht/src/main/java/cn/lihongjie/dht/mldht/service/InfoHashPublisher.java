@@ -3,6 +3,7 @@ package cn.lihongjie.dht.mldht.service;
 import cn.lihongjie.dht.common.constants.KafkaTopics;
 import cn.lihongjie.dht.common.model.InfoHashMessage;
 import cn.lihongjie.dht.common.util.BloomFilterUtils;
+import cn.lihongjie.dht.springcommon.bloom.BloomFilterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +23,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class InfoHashPublisher {
     
     private final KafkaTemplate<String, InfoHashMessage> kafkaTemplate;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final RedisTemplate<String, String> redisTemplate; // retained for potential future non-bloom redis ops
+    private final BloomFilterService bloomFilterService;
     
     @Value("${dedup.enabled:true}")
     private boolean dedupEnabled;
@@ -77,18 +79,10 @@ public class InfoHashPublisher {
      */
     private boolean isDuplicate(String infoHash) {
         try {
-            // 使用Redis原生Bloom Filter命令：BF.MEXISTS key item
-            Object result = redisTemplate.execute(
-                (connection) -> connection.execute("BF.MEXISTS", 
-                    bloomFilterKey.getBytes(), infoHash.getBytes()),
-                true
-            );
-            
-            // 返回1表示可能存在，0表示肯定不存在
-            return result != null && "1".equals(result.toString());
+            return bloomFilterService.exists(bloomFilterKey, infoHash);
         } catch (Exception e) {
-            log.error("Bloom Filter check failed for {}: {}", infoHash, e.getMessage());
-            return false; // 出错时放行，避免丢失数据
+            log.error("Bloom Filter check failed via BloomFilterService for {}: {}", infoHash, e.getMessage());
+            return false;
         }
     }
     
@@ -97,14 +91,9 @@ public class InfoHashPublisher {
      */
     private void markAsProcessed(String infoHash) {
         try {
-            // 使用Redis原生Bloom Filter命令：BF.MADD key item
-            redisTemplate.execute(
-                (connection) -> connection.execute("BF.MADD", 
-                    bloomFilterKey.getBytes(), infoHash.getBytes()),
-                true
-            );
+            bloomFilterService.add(bloomFilterKey, infoHash);
         } catch (Exception e) {
-            log.error("Bloom Filter mark failed for {}: {}", infoHash, e.getMessage());
+            log.error("Bloom Filter mark failed via BloomFilterService for {}: {}", infoHash, e.getMessage());
         }
     }
     

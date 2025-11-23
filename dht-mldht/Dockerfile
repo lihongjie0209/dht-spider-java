@@ -6,6 +6,7 @@ WORKDIR /build
 # 复制完整项目结构
 COPY pom.xml .
 COPY dht-common dht-common
+COPY dht-spring-common dht-spring-common
 COPY dht-mldht dht-mldht
 COPY dht-bt-client/pom.xml dht-bt-client/pom.xml
 COPY dht-metadata-service/pom.xml dht-metadata-service/pom.xml
@@ -32,6 +33,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=60s \
 
 # 暴露 DHT 端口范围 (UDP)
 EXPOSE 6881-6900/udp
+
+# 去重相关环境变量（Spring Boot relaxed binding 会映射到 dedup.enabled / dedup.bloom.key）
+ENV DEDUP_ENABLED=true \
+  DEDUP_BLOOM_KEY=dht:bloom:discovered
 
 # 启动应用
 ENTRYPOINT ["java", "-jar", "app.jar"]

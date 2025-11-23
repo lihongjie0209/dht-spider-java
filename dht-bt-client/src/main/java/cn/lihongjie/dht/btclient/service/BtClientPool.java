@@ -11,7 +11,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -29,7 +31,9 @@ public class BtClientPool {
     private final int timeoutSeconds;
     private final Semaphore semaphore;
     private final AtomicInteger success = new AtomicInteger();
-    private final AtomicInteger failure = new AtomicInteger();
+    private final AtomicInteger timeout = new AtomicInteger();
+    private final AtomicInteger noPeers = new AtomicInteger();
+    private final AtomicInteger error = new AtomicInteger();
     private final AtomicInteger inProgress = new AtomicInteger();
 
     public BtClientPool(BtRuntime runtime,
@@ -45,50 +49,72 @@ public class BtClientPool {
     }
 
     /**
-     * 阻塞式执行一次下载，会话结束即销毁 BtClient。
+     * 阻塞式执行一次下载，会话结束即销毁 BtClient，返回结果状态。
      */
-    public Torrent download(String infoHash, Consumer<Torrent> callback) throws InterruptedException {
+    public DownloadResult download(String infoHash, Consumer<Torrent> callback) throws InterruptedException {
         semaphore.acquire();
         inProgress.incrementAndGet();
+        long start = System.currentTimeMillis();
+        DownloadStatus status;
+        Torrent torrent = null;
+        Throwable err = null;
         try {
             String magnet = "magnet:?xt=urn:btih:" + infoHash;
             Storage storage = new FileSystemStorage(storagePath);
             final Torrent[] holder = new Torrent[1];
+            CountDownLatch latch = new CountDownLatch(1);
             BtClient client = Bt.client(runtime)
                     .storage(storage)
                     .magnet(magnet)
                     .afterTorrentFetched(t -> {
                         holder[0] = t;
-                        success.incrementAndGet();
                         if (callback != null) {
                             callback.accept(t);
                         }
+                        latch.countDown();
                         log.info("Fetched metadata infoHash={} name={}", infoHash, t.getName());
                     })
                     .build();
 
             client.startAsync();
-            long start = System.currentTimeMillis();
-            while (holder[0] == null && (System.currentTimeMillis() - start) < timeoutSeconds * 1000L) {
-                Thread.sleep(100);
+            boolean completed = latch.await(timeoutSeconds, TimeUnit.SECONDS);
+            torrent = holder[0];
+            if (!completed) {
+                status = DownloadStatus.TIMEOUT;
+                timeout.incrementAndGet();
+                log.warn("Timeout waiting metadata infoHash={}", infoHash);
+            } else if (torrent == null) {
+                status = DownloadStatus.NO_PEERS; // 回调没触发但 latch 结束(极少情况)
+                noPeers.incrementAndGet();
+                log.warn("No peers metadata infoHash={}", infoHash);
+            } else {
+                status = DownloadStatus.SUCCESS;
+                success.incrementAndGet();
             }
-
-            if (holder[0] == null) {
-                failure.incrementAndGet();
-                log.warn("Timeout/no peers infoHash={}", infoHash);
-            }
-            return holder[0];
+            try { client.stop(); } catch (Exception ignore) {}
         } catch (Exception e) {
-            failure.incrementAndGet();
+            status = DownloadStatus.ERROR;
+            error.incrementAndGet();
+            err = e;
             log.error("Error downloading metadata infoHash={}: {}", infoHash, e.getMessage());
-            return null;
         } finally {
             inProgress.decrementAndGet();
             semaphore.release();
         }
+        long elapsed = System.currentTimeMillis() - start;
+        return new DownloadResult(infoHash, torrent, status, elapsed, err);
     }
 
     public String getStats() {
-        return String.format("poolSize=%d available=%d inProgress=%d success=%d failure=%d", poolSize, semaphore.availablePermits(), inProgress.get(), success.get(), failure.get());
+        return String.format(
+                "poolSize=%d available=%d inProgress=%d success=%d timeout=%d noPeers=%d error=%d",
+                poolSize, semaphore.availablePermits(), inProgress.get(), success.get(), timeout.get(), noPeers.get(), error.get());
+    }
+
+    public enum DownloadStatus { SUCCESS, TIMEOUT, NO_PEERS, ERROR }
+
+    public record DownloadResult(String infoHash, Torrent torrent, DownloadStatus status,
+                                 long elapsedMillis, Throwable error) {
+        public boolean isSuccess() { return status == DownloadStatus.SUCCESS; }
     }
 }
