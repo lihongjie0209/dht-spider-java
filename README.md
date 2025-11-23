@@ -314,6 +314,10 @@ docker stats
 - [ ] Performance optimization and tuning
 - [ ] Add Web management UI
 
+### 🤝 Contributing
+
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
 ### 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -727,6 +731,10 @@ curl http://localhost:8080/api/v1/torrents/stats
 ```bash
 docker stats
 ```
+
+## 🤝 贡献
+
+欢迎贡献！请阅读我们的[贡献指南](CONTRIBUTING.md)了解行为准则和提交 Pull Request 的流程。
 
 ## 📄 许可证
 
