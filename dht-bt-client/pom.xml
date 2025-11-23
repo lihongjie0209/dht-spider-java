@@ -54,6 +54,18 @@
             <version>1.10</version>
         </dependency>
 
+        <!-- Libtorrent4j (core + Windows native) -->
+        <dependency>
+            <groupId>org.libtorrent4j</groupId>
+            <artifactId>libtorrent4j</artifactId>
+            <version>2.1.0-38</version>
+        </dependency>
+        <dependency>
+            <groupId>org.libtorrent4j</groupId>
+            <artifactId>libtorrent4j-windows</artifactId>
+            <version>2.1.0-38</version>
+        </dependency>
+
         <!-- Bencode -->
         <dependency>
             <groupId>com.dampcake</groupId>

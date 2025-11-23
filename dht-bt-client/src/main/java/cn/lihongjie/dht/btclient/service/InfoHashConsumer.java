@@ -22,9 +22,8 @@ import java.util.concurrent.atomic.AtomicLong;
 @RequiredArgsConstructor
 public class InfoHashConsumer {
     
-    private final MetadataDownloader metadataDownloader;
+    private final LibtorrentMetadataDownloader libtorrentMetadataDownloader;
     private final BloomFilterService bloomFilterService;
-    private final DirectPeerDownloader directPeerDownloader;
     
     @Value("${dedup.enabled:true}")
     private boolean dedupEnabled;
@@ -55,29 +54,20 @@ public class InfoHashConsumer {
                 return;
             }
             
-            // 先尝试直连获取 ut_metadata，若成功则跳过后续下载
-            if (message.getSourceIp() != null && message.getSourcePort() != null) {
-                directPeerDownloader.tryDirectAndFetch(infoHash, message.getSourceIp(), message.getSourcePort())
-                        .whenComplete((result, ex) -> {
-                            if (ex != null) {
-                                log.debug("Direct attempt error infoHash={} reason={}", infoHash, ex.getMessage());
-                                fallbackDownload(infoHash, acknowledgment);
-                            } else if (result.metadataSuccess()) {
-                                log.info("Early ut_metadata success infoHash={} (handshake={})", infoHash, result.handshakeSuccess());
-                                if (dedupEnabled) {
-                                    bloomFilterService.add(bloomFilterKey, infoHash);
-                                }
-                                processedCount.incrementAndGet();
-                                acknowledgment.acknowledge();
-                            } else {
-                                // 未成功获取元数据，回退
-                                fallbackDownload(infoHash, acknowledgment);
-                            }
-                        });
-            } else {
-                // 没有 peer 信息直接执行常规下载
-                fallbackDownload(infoHash, acknowledgment);
-            }
+            // 统一使用 libtorrent4j 异步获取元数据
+            libtorrentMetadataDownloader.downloadAsync(infoHash)
+                    .whenComplete((data, ex) -> {
+                        if (ex != null) {
+                            log.debug("libtorrent metadata failed infoHash={} reason={}", infoHash, ex.getMessage());
+                        } else if (data != null) {
+                            if (dedupEnabled) bloomFilterService.add(bloomFilterKey, infoHash);
+                            processedCount.incrementAndGet();
+                            log.info("libtorrent metadata success infoHash={} size={} bytes", infoHash, data.length);
+                        } else {
+                            log.debug("libtorrent metadata empty infoHash={}", infoHash);
+                        }
+                        acknowledgment.acknowledge();
+                    });
             
         } catch (Exception e) {
             log.error("Error processing InfoHash message", e);
@@ -85,22 +75,5 @@ public class InfoHashConsumer {
         }
     }
     
-    private void fallbackDownload(String infoHash, Acknowledgment acknowledgment) {
-        metadataDownloader.downloadAsync(infoHash)
-                .whenComplete((metadata, ex) -> {
-                    if (ex != null) {
-                        log.error("Failed to download metadata for InfoHash: {}", infoHash, ex);
-                    } else if (metadata != null) {
-                        log.info("Successfully downloaded metadata for InfoHash: {}, name: {}",
-                                infoHash, metadata.getName());
-                        if (dedupEnabled) {
-                            bloomFilterService.add(bloomFilterKey, infoHash);
-                        }
-                        processedCount.incrementAndGet();
-                    } else {
-                        log.warn("No metadata downloaded for InfoHash: {}", infoHash);
-                    }
-                    acknowledgment.acknowledge();
-                });
-    }
+    // 旧的直连与回退逻辑已停用
 }
