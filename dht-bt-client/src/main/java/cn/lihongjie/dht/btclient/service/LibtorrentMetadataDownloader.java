@@ -113,6 +113,8 @@ public class LibtorrentMetadataDownloader {
             session = new SessionManager();
             SettingsPack sp = new SettingsPack();
             sp.listenInterfaces("0.0.0.0:" + listenPort + ",[::]:" + listenPort);
+            sp.setEnableDht(true);
+            sp.setAnnouncePort(listenPort);
             SessionParams params = new SessionParams(sp);
             session.start(params);
             session.addListener(alertListener);
