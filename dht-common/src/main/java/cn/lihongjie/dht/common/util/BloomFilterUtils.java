@@ -2,7 +2,7 @@ package cn.lihongjie.dht.common.util;
 
 /**
  * Bloom Filter常量定义
- * 使用Redis原生RedisBloom模块（BF.MADD / BF.MEXISTS命令）
+ * 使用Redis原生RedisBloom模块（BF.ADD / BF.EXISTS命令）
  * <p>
  * 参数设计：
  * - 预期元素数量(n): 100,000,000 (1亿)
@@ -11,8 +11,8 @@ package cn.lihongjie.dht.common.util;
  * <p>
  * Redis命令：
  * - BF.RESERVE {key} {error_rate} {capacity} - 创建Bloom Filter
- * - BF.MADD {key} {item...} - 批量添加元素
- * - BF.MEXISTS {key} {item...} - 批量检查元素是否存在
+ * - BF.ADD {key} {item} - 添加单个元素
+ * - BF.EXISTS {key} {item} - 检查单个元素是否存在
  */
 public class BloomFilterUtils {
     

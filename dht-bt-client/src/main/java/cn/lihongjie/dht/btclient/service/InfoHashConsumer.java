@@ -83,34 +83,32 @@ public class InfoHashConsumer {
     }
     
     /**
-     * 检查InfoHash是否已下载过（使用Redis原生BF.MEXISTS命令）
+     * 检查InfoHash是否已下载过（使用Redis原生BF.EXISTS命令，单元素检查）
      */
     private boolean isDuplicate(String infoHash) {
         try {
             Object result = redisTemplate.execute(
-                (connection) -> connection.execute("BF.MEXISTS", 
+                (connection) -> connection.execute("BF.EXISTS",
                     bloomFilterKey.getBytes(), infoHash.getBytes()),
-                true
-            );
+                true);
             return result != null && "1".equals(result.toString());
         } catch (Exception e) {
-            log.error("Bloom Filter check failed for {}: {}", infoHash, e.getMessage());
+            log.error("Bloom Filter EXISTS check failed for {}", infoHash, e);
             return false;
         }
     }
     
     /**
-     * 标记InfoHash为已下载（使用Redis原生BF.MADD命令）
+     * 标记InfoHash为已下载（使用Redis原生BF.ADD命令，单元素添加）
      */
     private void markAsProcessed(String infoHash) {
         try {
             redisTemplate.execute(
-                (connection) -> connection.execute("BF.MADD", 
+                (connection) -> connection.execute("BF.ADD",
                     bloomFilterKey.getBytes(), infoHash.getBytes()),
-                true
-            );
+                true);
         } catch (Exception e) {
-            log.error("Bloom Filter mark failed for {}: {}", infoHash, e.getMessage());
+            log.error("Bloom Filter ADD mark failed for {}", infoHash, e);
         }
     }
 }
