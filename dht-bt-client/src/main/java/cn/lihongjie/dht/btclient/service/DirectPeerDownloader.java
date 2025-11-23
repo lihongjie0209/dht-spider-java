@@ -82,6 +82,9 @@ public class DirectPeerDownloader {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(ip, port), connectTimeoutMillis);
             socket.setSoTimeout(handshakeTimeoutMillis);
+            socket.setSoLinger(true, 0);  // 立即关闭，发送 RST，避免 TIME_WAIT
+            socket.setTcpNoDelay(true);   // 禁用 Nagle，立即发送小包
+            socket.setReuseAddress(true); // 允许端口快速重用
             log.info("[direct] connected peer={}:{} localPort={} timeoutMs(connect={},handshake={})", ip, port, socket.getLocalPort(), connectTimeoutMillis, handshakeTimeoutMillis);
             byte[] infoHashBytes = HexFormat.of().parseHex(infoHashHex);
             byte[] peerId = PeerProtocolUtil.generatePeerId();
@@ -126,6 +129,14 @@ public class DirectPeerDownloader {
             byte[] peerReserved = Arrays.copyOfRange(resp, 20, 28);
             byte[] peerPeerId = Arrays.copyOfRange(resp, 48, 68);
             log.info("[direct] handshake OK proto={} reserved={} peerId={}", proto, HexFormat.of().formatHex(peerReserved), new String(peerPeerId));
+            
+            // 检查对端是否支持扩展协议（BEP 10）
+            if ((peerReserved[5] & 0x10) == 0) {
+                log.info("[direct] peer does not support extension protocol (reserved[5] & 0x10 = 0) infoHash={} peer={}:{}", infoHashHex, ip, port);
+                bloomFilterService.add(directBloomKey, dedupKey);
+                return new DirectResult(true, false); // 握手成功但不支持扩展
+            }
+            
             // 扩展握手阶段
             boolean metadataSuccess = false;
             try {
